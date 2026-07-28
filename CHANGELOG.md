@@ -7,6 +7,24 @@ Versioning: `MAJOR.PHASE.PATCH` — e.g. `0.1.0` = phase 1 complete.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-28 — Phase 3: React Dashboard
+
+### Added
+- `frontend/` — Vite 5 + React 18 + TypeScript + Tailwind CSS scaffold
+- `src/types/index.ts` — shared TS types (Prediction, Session, WsMessage, MetricSeries)
+- `src/hooks/useStream.ts` — WebSocket hook with auto-reconnect (3 s), 120-frame ring buffer
+- `src/services/api.ts` — typed fetch wrappers for sessions, predictions, health endpoints
+- `src/components/StatusBadge.tsx` — live/connecting/offline/error indicator with pulse animation
+- `src/components/MetricGauge.tsx` — animated SVG radial gauge for stress/engagement/attention/fatigue
+- `src/components/EmotionBar.tsx` — sorted horizontal bars for all emotion score probabilities
+- `src/components/TimeSeriesChart.tsx` — Recharts line chart, 120-point rolling window
+- `src/components/XAIPanel.tsx` — SHAP modality contribution bars + NL explanation text
+- `src/pages/Dashboard.tsx` — full single-page dashboard wiring all components
+- Vite proxy: `/api` → `localhost:8000`, `/ws` → `ws://localhost:8000`
+- Manual chunk split: react / recharts / icons for better caching
+- `.env.example` with `VITE_WS_URL` and `VITE_DEMO_SESSION_ID`
+- `frontend/dist/` and `frontend/node_modules/` added to root `.gitignore`
+
 ## [0.2.0] — 2026-07-28 — Phase 2: Database Layer & API Skeleton
 
 ### Added

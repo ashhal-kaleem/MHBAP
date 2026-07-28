@@ -8,7 +8,7 @@ Last updated: 2026-07-28
 |---|-------|--------|-------|------|
 | 1 | Project setup, architecture, env, CI/CD, docs | ✅ Complete | 2026-07-28 | 2026-07-28 |
 | 2 | FastAPI backend + database | ✅ Complete | 2026-07-28 | 2026-07-28 |
-| 3 | React frontend / dashboard | ⏳ Pending | — | — |
+| 3 | React frontend / dashboard | ✅ Complete | 2026-07-28 | 2026-07-28 |
 | 4 | Webcam / mic / HCI data collection | ⏳ Pending | — | — |
 | 5 | Individual AI pipelines | ⏳ Pending | — | — |
 | 6 | Multimodal fusion (TCMT) | ⏳ Pending | — | — |
