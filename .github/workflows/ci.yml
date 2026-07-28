@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint:
+    name: Lint (ruff + mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+      - run: pip install ruff mypy black pydantic sqlalchemy
+      - run: ruff check backend ml scripts
+      - run: black --check backend ml scripts
+
+  test-backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_USER: mhbap
+          POSTGRES_PASSWORD: mhbap
+          POSTGRES_DB: mhbap_test
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql+asyncpg://mhbap:mhbap@localhost:5432/mhbap_test
+      DATABASE_SYNC_URL: postgresql://mhbap:mhbap@localhost:5432/mhbap_test
+      REDIS_URL: redis://localhost:6379/0
+      SECRET_KEY: ci-test-secret-key-32chars-replace
+      APP_ENV: testing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: cd backend && alembic upgrade head
+      - run: pytest backend/tests -v --cov=backend/app --cov-report=xml
+      - uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+
+  test-ml:
+    name: ML unit tests (CPU only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+      - run: pip install -e ".[dev]" numpy pandas scikit-learn torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pytest ml/tests -v -m "not slow"

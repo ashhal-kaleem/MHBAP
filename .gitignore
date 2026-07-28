@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.log
+
+# Node
+node_modules/
+dist/
+.next/
+.nuxt/
+*.local
+npm-debug.log*
+
+# ML / data
+ml/models/weights/*.pt
+ml/models/weights/*.pth
+ml/models/weights/*.onnx
+ml/datasets/raw/
+ml/datasets/processed/
+data/sessions/
+data/exports/
+*.h5
+*.hdf5
+*.pkl
+*.npy
+*.npz
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Docker
+docker/postgres_data/
+docker/redis_data/
+
+# Docs build
+site/
+docs/_build/
