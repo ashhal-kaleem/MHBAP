@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "mhbap"
@@ -28,6 +28,7 @@ dependencies = [
     # Config / validation
     "pydantic>=2.7.0",
     "pydantic-settings>=2.3.0",
+    "email-validator>=2.1.0",
     "python-dotenv>=1.0.0",
     # Utilities
     "loguru>=0.7.2",
@@ -70,7 +71,8 @@ dev = [
     "black>=24.4.0",
     "mypy>=1.10.0",
     "pre-commit>=3.7.0",
-    "ipython>=8.25.0",
+    "ipython>=8.12.0,<8.13; python_version < '3.10'",
+    "ipython>=8.25.0; python_version >= '3.10'",
 ]
 docs = [
     "mkdocs>=1.6.0",
@@ -80,6 +82,9 @@ docs = [
 
 [project.scripts]
 mhbap = "scripts.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["backend*", "ml*", "scripts*"]
 
 [tool.ruff]
 line-length = 100

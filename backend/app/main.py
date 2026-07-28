@@ -25,13 +25,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
-    # Phase 2: initialise DB pool + Redis here
+    from backend.app.core.redis import get_redis
+    from backend.app.db.session import get_engine
+
+    get_engine()  # opens the pool lazily; first real query connects
+    get_redis()
+
     # Phase 5: pre-load ML model weights here
 
     yield
 
     logger.info("Shutting down MHBAP")
-    # Phase 2: close DB + Redis connections here
+    from backend.app.core.redis import close_redis
+    from backend.app.db.session import dispose_engine
+
+    await dispose_engine()
+    await close_redis()
 
 
 def create_app() -> FastAPI:

@@ -3,7 +3,7 @@ Health check endpoints.
 GET /api/v1/health/       — liveness probe
 GET /api/v1/health/ready  — readiness probe (checks DB + Redis in Phase 2)
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -33,13 +33,18 @@ async def liveness() -> HealthResponse:
 
 
 @router.get("/ready", response_model=ReadinessResponse, summary="Readiness probe")
-async def readiness() -> ReadinessResponse:
-    """
-    Returns 200 only if all downstream dependencies are reachable.
-    Phase 2 will add real DB + Redis checks.
-    """
+async def readiness(response: Response) -> ReadinessResponse:
+    """Returns 200 only if all downstream dependencies are reachable, else 503."""
+    from backend.app.core.redis import check_redis_connection
+    from backend.app.db.session import check_db_connection
+
+    db_ok = await check_db_connection()
+    redis_ok = await check_redis_connection()
+    if not (db_ok and redis_ok):
+        response.status_code = 503
+
     return ReadinessResponse(
-        status="ok",
-        database="not_checked",  # updated in Phase 2
-        redis="not_checked",     # updated in Phase 2
+        status="ok" if (db_ok and redis_ok) else "degraded",
+        database="ok" if db_ok else "unreachable",
+        redis="ok" if redis_ok else "unreachable",
     )
