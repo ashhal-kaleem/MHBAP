@@ -29,6 +29,9 @@ from ml.pipelines.pose.pipeline import PosePipeline
 from ml.pipelines.voice.pipeline import VoicePipeline
 from ml.pipelines.hci.pipeline import HCIPipeline
 from ml.data_writer import DataWriter
+from ml.fusion.predictor import BehaviourPredictor, PredictionResult
+from ml.xai.shap_explainer import SHAPExplainer
+from ml.xai.nl_explainer import generate_explanation
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +56,13 @@ class SessionRunner:
         self._voice = VoicePipeline()
         self._hci_pipe = HCIPipeline()
 
-        # Writer
-        self._writer = DataWriter()
+        # Writer + predictor + XAI
+        self._writer    = DataWriter()
+        self._predictor = BehaviourPredictor()
+        self._explainer = SHAPExplainer(self._predictor._model)
+        self.latest_prediction: Optional[PredictionResult] = None
+        self.latest_shap: dict = {}
+        self.latest_explanation: str = ""
 
     # ------------------------------------------------------------------
     async def __aenter__(self) -> "SessionRunner":
@@ -102,6 +110,20 @@ class SessionRunner:
         # HCI (drain event buffer)
         hci_events  = self._hci.get_events()
         hci_feats   = self._hci_pipe.process(hci_events)
+
+        # Fuse + predict + explain
+        feature_dicts = {
+            "face": face_feats, "gaze": gaze_feats, "pose": pose_feats,
+            "voice": voice_feats, "hci": hci_feats,
+        }
+        prediction = self._predictor.predict(feature_dicts)
+        if prediction.feature_vector is not None:
+            shap = self._explainer.explain(prediction.feature_vector)
+            self.latest_shap = shap.get("stress", {})
+            self.latest_explanation = generate_explanation(
+                prediction, self.latest_shap, head="stress"
+            )
+        self.latest_prediction = prediction
 
         # Persist
         for modality, feats in [
