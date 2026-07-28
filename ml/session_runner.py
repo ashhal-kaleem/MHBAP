@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid as _uuid_mod
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -32,6 +34,7 @@ from ml.data_writer import DataWriter
 from ml.fusion.predictor import BehaviourPredictor, PredictionResult
 from ml.xai.shap_explainer import SHAPExplainer
 from ml.xai.nl_explainer import generate_explanation
+from backend.app.core.stream_bus import publish as _bus_publish
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +127,26 @@ class SessionRunner:
                 prediction, self.latest_shap, head="stress"
             )
         self.latest_prediction = prediction
+
+        # Push to any connected WebSocket clients
+        now_iso = datetime.now(timezone.utc).isoformat()
+        _bus_publish(str(self.session_id), {
+            "type": "prediction",
+            "payload": {
+                "id": str(_uuid_mod.uuid4()),
+                "session_id": str(self.session_id),
+                "time": now_iso,
+                "recorded_at": now_iso,
+                "emotion_label": prediction.emotion,
+                "emotion_scores": prediction.emotion_scores,
+                "stress":     prediction.stress,
+                "engagement": prediction.engagement,
+                "attention":  prediction.attention,
+                "fatigue":    prediction.fatigue,
+                "shap_weights":     self.latest_shap,
+                "explanation_text": self.latest_explanation,
+            },
+        })
 
         # Persist
         for modality, feats in [

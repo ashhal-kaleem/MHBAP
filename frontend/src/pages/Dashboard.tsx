@@ -6,21 +6,36 @@ import { MetricGauge } from '@/components/MetricGauge'
 import { EmotionBar } from '@/components/EmotionBar'
 import { TimeSeriesChart } from '@/components/TimeSeriesChart'
 import { XAIPanel } from '@/components/XAIPanel'
-import type { MetricSeries, Prediction } from '@/types'
+import type { MetricSeries, Prediction, WsMessage } from '@/types'
 
-const DEMO_SESSION_ID = import.meta.env.VITE_DEMO_SESSION_ID ?? 'demo-session-001'
+/**
+ * Session to connect to.
+ *   "demo"   → synthetic stream, no hardware needed
+ *   <uuid>   → live session stream
+ * Override via VITE_DEMO_SESSION_ID env var.
+ */
+const SESSION_ID: string =
+  (import.meta.env.VITE_DEMO_SESSION_ID as string | undefined) ?? 'demo'
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-US', { hour12: false })
+function isPrediction(msg: WsMessage): msg is WsMessage & { payload: Prediction } {
+  return msg.type === 'prediction' && msg.payload !== null
+}
+
+function formatTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString('en-US', { hour12: false })
+  } catch {
+    return iso
+  }
 }
 
 export default function Dashboard() {
-  const { status, latest: _latest, history } = useStream(DEMO_SESSION_ID)
+  const { status, history } = useStream(SESSION_ID)
   const [paused, setPaused] = useState(false)
 
   const prediction = useMemo<Prediction | null>(() => {
     for (let i = history.length - 1; i >= 0; i--) {
-      if (history[i].type === 'prediction') return history[i].payload as Prediction
+      if (isPrediction(history[i])) return history[i].payload as Prediction
     }
     return null
   }, [history])
@@ -28,15 +43,15 @@ export default function Dashboard() {
   const series = useMemo<MetricSeries[]>(() => {
     if (paused) return []
     return history
-      .filter((m) => m.type === 'prediction')
+      .filter(isPrediction)
       .map((m) => {
         const p = m.payload as Prediction
         return {
-          time: formatTime(p.recorded_at),
-          stress: p.stress,
+          time:       formatTime(p.recorded_at ?? p.time),
+          stress:     p.stress,
           engagement: p.engagement,
-          attention: p.attention,
-          fatigue: p.fatigue,
+          attention:  p.attention,
+          fatigue:    p.fatigue,
         }
       })
   }, [history, paused])
@@ -62,7 +77,6 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Main grid */}
       <main className="mx-auto max-w-7xl px-4 py-6 space-y-6">
 
         {/* Gauges row */}
@@ -94,7 +108,11 @@ export default function Dashboard() {
         {/* No-data placeholder */}
         {!p && (
           <div className="rounded-xl border border-dashed border-gray-700 p-8 text-center text-sm text-gray-500">
-            Waiting for live predictions — start a session and the inference pipeline will populate this view.
+            {status === 'connecting'
+              ? 'Connecting to stream…'
+              : status === 'open'
+              ? 'Connected — waiting for first prediction…'
+              : 'Stream offline. Reconnecting automatically.'}
           </div>
         )}
       </main>

@@ -1,10 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ConnectionStatus, WsMessage } from '@/types'
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? `ws://${window.location.hostname}:8000/api/v1/stream/ws`
+/**
+ * WS base URL.
+ * - VITE_WS_URL env var overrides (e.g. for production).
+ * - Default uses the same host/port as the page, hitting the Vite proxy
+ *   which forwards /api/... WebSocket upgrades to localhost:8000.
+ */
+const WS_BASE =
+  (import.meta.env.VITE_WS_URL as string | undefined) ??
+  `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
+
 const RECONNECT_DELAY_MS = 3000
 const MAX_HISTORY = 120   // ~2 min at 1 msg/s
 
+/**
+ * sessionId:
+ *   "demo"     → connects to /api/v1/stream/demo
+ *   <uuid str> → connects to /api/v1/stream/session/<uuid>
+ *   null       → no connection
+ */
 export function useStream(sessionId: string | null) {
   const [status, setStatus] = useState<ConnectionStatus>('closed')
   const [latest, setLatest] = useState<WsMessage | null>(null)
@@ -14,16 +29,22 @@ export function useStream(sessionId: string | null) {
 
   const connect = useCallback(() => {
     if (!sessionId) return
-    const url = `${WS_URL}/${sessionId}`
+
+    const path =
+      sessionId === 'demo'
+        ? '/api/v1/stream/demo'
+        : `/api/v1/stream/session/${sessionId}`
+    const url = `${WS_BASE}${path}`
+
     setStatus('connecting')
     const ws = new WebSocket(url)
     wsRef.current = ws
 
     ws.onopen = () => setStatus('open')
 
-    ws.onmessage = (evt) => {
+    ws.onmessage = (evt: MessageEvent<string>) => {
       try {
-        const msg: WsMessage = JSON.parse(evt.data as string)
+        const msg = JSON.parse(evt.data) as WsMessage
         setLatest(msg)
         setHistory((prev) => [...prev.slice(-(MAX_HISTORY - 1)), msg])
       } catch {
@@ -35,7 +56,6 @@ export function useStream(sessionId: string | null) {
 
     ws.onclose = () => {
       setStatus('closed')
-      // auto-reconnect
       timerRef.current = setTimeout(connect, RECONNECT_DELAY_MS)
     }
   }, [sessionId])
@@ -43,13 +63,13 @@ export function useStream(sessionId: string | null) {
   useEffect(() => {
     connect()
     return () => {
-      timerRef.current && clearTimeout(timerRef.current)
+      if (timerRef.current !== null) clearTimeout(timerRef.current)
       wsRef.current?.close()
     }
   }, [connect])
 
   const disconnect = useCallback(() => {
-    timerRef.current && clearTimeout(timerRef.current)
+    if (timerRef.current !== null) clearTimeout(timerRef.current)
     wsRef.current?.close()
   }, [])
 
