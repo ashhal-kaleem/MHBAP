@@ -9,8 +9,8 @@ from __future__ import annotations
 import random
 from typing import List, Optional
 
-from app.evaluation.metrics import EvaluationReport, compute_report
-from app.evaluation.ablation import (
+from backend.app.evaluation.metrics import EvaluationReport, compute_report
+from backend.app.evaluation.ablation import (
     MODALITIES,
     EMOTION_LABELS,
     _MODALITY_ACC,

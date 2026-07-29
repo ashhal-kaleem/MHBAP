@@ -11,9 +11,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 
-from app.core.security import create_access_token, hash_password, verify_password
-from app.core.rate_limit import rate_limit
-from app.api.dependencies import get_current_user
+from backend.app.core.security import create_access_token, hash_password, verify_password
+from backend.app.core.rate_limit import rate_limit
+from backend.app.api.dependencies import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

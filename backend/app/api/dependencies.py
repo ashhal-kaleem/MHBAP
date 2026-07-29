@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.core.security import decode_access_token
+from backend.app.core.security import decode_access_token
 
 _bearer = HTTPBearer(auto_error=False)
 

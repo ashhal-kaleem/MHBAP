@@ -99,8 +99,10 @@ if _TORCH_AVAILABLE:
             self.head_attention  = nn.Linear(D_MODEL, 1)
             self.head_fatigue    = nn.Linear(D_MODEL, 1)
 
-        def forward(self, x: "torch.Tensor") -> Dict[str, "torch.Tensor"]:
-            # Accept (B, F) or (B, T, F)
+        def forward(self, x) -> Dict[str, "torch.Tensor"]:
+            # Accept numpy arrays or torch tensors, shapes (B,F) or (B,T,F)
+            if isinstance(x, np.ndarray):
+                x = torch.from_numpy(x.astype(np.float32))
             if x.dim() == 2:
                 x = x.unsqueeze(1)                               # (B,1,F)
             B, T, F = x.shape
@@ -120,11 +122,11 @@ if _TORCH_AVAILABLE:
             cls_out = enc[:, 0, :]                                # (B, D)
 
             return {
-                "emotion_logits": self.head_emotion(cls_out),     # (B, 8)
-                "stress":    torch.sigmoid(self.head_stress(cls_out))    * 10,
-                "engagement":torch.sigmoid(self.head_engagement(cls_out)),
-                "attention": torch.sigmoid(self.head_attention(cls_out)),
-                "fatigue":   torch.sigmoid(self.head_fatigue(cls_out)),
+                "emotion_logits": self.head_emotion(cls_out).detach().numpy(),
+                "stress":    (torch.sigmoid(self.head_stress(cls_out)) * 10).detach().numpy(),
+                "engagement": torch.sigmoid(self.head_engagement(cls_out)).detach().numpy(),
+                "attention":  torch.sigmoid(self.head_attention(cls_out)).detach().numpy(),
+                "fatigue":    torch.sigmoid(self.head_fatigue(cls_out)).detach().numpy(),
             }
 
 

@@ -10,7 +10,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from app.evaluation.metrics import EvaluationReport, compute_report
+from backend.app.evaluation.metrics import EvaluationReport, compute_report
 
 MODALITIES = ["facial", "audio", "physiological", "hci"]
 

@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from passlib.context import CryptContext
 
-from app.core.config import settings
+from backend.app.core.config import settings
 
 
 # ── Password hashing ──────────────────────────────────────────────────────────

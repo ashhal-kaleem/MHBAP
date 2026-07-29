@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.api.dependencies import get_optional_user
 from backend.app.db.session import get_db
 from backend.app.schemas.session import (
     SessionContextUpdate,

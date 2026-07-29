@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
-from app.evaluation.benchmark import run_benchmark
-from app.evaluation.ablation import run_ablation, MODALITIES
-from app.schemas.evaluation import (
+from backend.app.evaluation.benchmark import run_benchmark
+from backend.app.evaluation.ablation import run_ablation, MODALITIES
+from backend.app.schemas.evaluation import (
     BenchmarkResponse,
     EvaluationReportSchema,
     ClassMetricsSchema,
