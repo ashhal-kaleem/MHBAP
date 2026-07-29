@@ -13,8 +13,8 @@ Last updated: 2026-07-28
 | 5 | Multimodal fusion (TCMT) + XAI | ✅ Complete | 2026-07-28 | 2026-07-28 |
 | 6 | Real-time streaming + dashboard wiring | ✅ Complete | 2026-07-28 | 2026-07-28 |
 | 7 | Session management UI + REST wiring | ✅ Complete | 2026-07-28 | 2026-07-29 |
-| 8 | Explainable AI polish | ⏳ In progress | 2026-07-29 | — |
-| 9 | Real-time streaming hardening (Redis) | ⏳ Pending | — | — |
+| 8 | Explainable AI polish | ✅ Complete | 2026-07-29 | 2026-07-29 |
+| 9 | Real-time streaming hardening (Redis) | ⏳ In progress | 2026-07-29 | — |
 | 10 | Data storage, analytics, exports | ⏳ Pending | — | — |
 | 11 | Evaluation, benchmarks, ablations | ⏳ Pending | — | — |
 | 12 | Optimisation, Docker, publication cleanup | ⏳ Pending | — | — |
