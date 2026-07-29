@@ -1,47 +1,50 @@
-.PHONY: help install dev-install lint fmt test coverage backend frontend docker-up docker-down clean
+# MHBAP — Makefile
+# Usage: make <target>
 
-help:  ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n",$$1,$$2}'
+.PHONY: help install test test-unit test-integration lint tsc docker-build docker-up docker-down clean
 
-install:  ## Install production dependencies
-	pip install -e .
+help:
+	@echo "MHBAP dev commands:"
+	@echo "  make install        Install backend deps (pip install -e .)"
+	@echo "  make test           Run full test suite"
+	@echo "  make test-unit      Unit tests only"
+	@echo "  make test-int       Integration tests only"
+	@echo "  make lint           Ruff + mypy"
+	@echo "  make tsc            TypeScript type-check frontend"
+	@echo "  make docker-build   Build all Docker images"
+	@echo "  make docker-up      Start full stack (postgres+redis+backend+frontend)"
+	@echo "  make docker-down    Stop and remove containers"
+	@echo "  make clean          Remove __pycache__, .pytest_cache, dist"
 
-dev-install:  ## Install all dependency groups
-	pip install -e ".[ml,dev,docs]"
-	pre-commit install
+install:
+	pip install -e ".[dev]"
 
-lint:  ## Run ruff + mypy
-	ruff check backend ml scripts
-	mypy backend ml
+test:
+	python -m pytest backend/tests/ -q
 
-fmt:  ## Auto-format with black + ruff
-	black backend ml scripts
-	ruff check --fix backend ml scripts
+test-unit:
+	python -m pytest backend/tests/unit/ -q
 
-test:  ## Run pytest
-	pytest
+test-int:
+	python -m pytest backend/tests/integration/ -q
 
-coverage:  ## Run tests with HTML coverage report
-	pytest --cov=backend --cov=ml --cov-report=html
-	start htmlcov/index.html
+lint:
+	ruff check backend/ ml/
+	mypy backend/app --ignore-missing-imports
 
-backend:  ## Start FastAPI dev server
-	cd backend && uvicorn app.main:app --reload --port 8000
+tsc:
+	cd frontend && npx tsc --noEmit
 
-frontend:  ## Start Vite dev server
-	cd frontend && npm run dev
+docker-build:
+	docker compose build
 
-docker-up:  ## Start all services via Docker Compose
-	docker compose -f docker/docker-compose.yml up --build
+docker-up:
+	docker compose up -d
 
-docker-down:  ## Stop all Docker services
-	docker compose -f docker/docker-compose.yml down -v
+docker-down:
+	docker compose down
 
-migrate:  ## Run Alembic migrations
-	cd backend && alembic upgrade head
-
-clean:  ## Remove build artifacts and caches
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>nul || true
-	find . -type d -name .pytest_cache -exec rm -rf {} + 2>nul || true
-	find . -type d -name htmlcov -exec rm -rf {} + 2>nul || true
-	find . -name "*.pyc" -delete 2>nul || true
+clean:
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
+	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null; \
+	rm -rf dist/ build/ *.egg-info/

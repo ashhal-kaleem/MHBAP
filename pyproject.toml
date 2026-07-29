@@ -30,6 +30,9 @@ dependencies = [
     "pydantic-settings>=2.3.0",
     "email-validator>=2.1.0",
     "python-dotenv>=1.0.0",
+    # Auth
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt==4.0.1",
     # Utilities
     "loguru>=0.7.2",
     "rich>=13.7.0",
