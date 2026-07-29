@@ -1,4 +1,4 @@
-import type { Prediction, Session, SessionStats, User, XAISummary } from '@/types'
+import type { Prediction, Session, SessionStats, User, UserAnalytics, XAISummary } from '@/types'
 
 const BASE = '/api/v1'
 
@@ -73,6 +73,38 @@ export const latestSessionPrediction = (sessionId: string) =>
 
 export const getXAISummary = (sessionId: string) =>
   json<XAISummary>(`/predictions/session/${sessionId}/xai`)
+
+// Analytics (Phase 10)
+export const getUserAnalytics = (userId: string) =>
+  json<UserAnalytics>(`/analytics/user/${userId}`)
+
+export async function exportSessionJson(sessionId: string): Promise<void> {
+  const res = await fetch(`${BASE}/sessions/${sessionId}/export/json`)
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `mhbap_session_${sessionId}.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+export async function exportUserCsv(userId: string): Promise<void> {
+  const res = await fetch(`${BASE}/analytics/user/${userId}/export/csv`)
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `mhbap_user_${userId}_all_sessions.csv`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
 
 // Health
 export const getHealth = () =>

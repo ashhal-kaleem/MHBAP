@@ -72,6 +72,46 @@ export interface XAISummary {
   dominant_modality: string | null
 }
 
+// ── Phase 10: Analytics types ─────────────────────────────────────────────
+
+export interface MetricTimePoint {
+  time: string    // ISO datetime
+  value: number
+}
+
+export interface MetricTimeSeries {
+  metric: string
+  points: MetricTimePoint[]
+}
+
+export interface EmotionBreakdown {
+  counts: Record<string, number>
+  total: number
+}
+
+export interface SessionSummary {
+  session_id: string
+  context: string | null
+  started_at: string
+  ended_at: string | null
+  duration_seconds: number | null
+  prediction_count: number
+  avg_stress: number | null
+  avg_engagement: number | null
+  avg_attention: number | null
+  avg_fatigue: number | null
+  dominant_emotion: string | null
+}
+
+export interface UserAnalytics {
+  user_id: string
+  session_count: number
+  total_duration_seconds: number
+  sessions: SessionSummary[]
+  metric_trends: Record<string, MetricTimeSeries>
+  emotion_breakdown: EmotionBreakdown
+}
+
 export type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'error'
 
 export interface MetricSeries {

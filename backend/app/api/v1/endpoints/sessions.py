@@ -101,6 +101,38 @@ async def session_stats(
     return stats
 
 
+@router.get("/{session_id}/export/json")
+async def export_session_json(
+    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+):
+    """Export all predictions for a session as a JSON file."""
+    import json as _json
+    from backend.app.services.prediction_service import list_predictions_for_session
+    from backend.app.schemas.prediction import PredictionRead
+
+    session = await session_service.get_session(db, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    predictions = await list_predictions_for_session(db, session_id)
+    payload = {
+        "session_id": str(session_id),
+        "context": session.context,
+        "started_at": session.started_at.isoformat() if session.started_at else None,
+        "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+        "predictions": [
+            PredictionRead.model_validate(p).model_dump(mode="json") for p in predictions
+        ],
+    }
+    content = _json.dumps(payload, indent=2, default=str)
+    filename = f"mhbap_session_{session_id}.json"
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/{session_id}/export/csv")
 async def export_session_csv(
     session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
