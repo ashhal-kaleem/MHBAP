@@ -17,6 +17,8 @@ from loguru import logger
 
 from backend.app.core.config import settings
 from backend.app.core.logging import setup_logging
+from backend.app.core.security_headers import SecurityHeadersMiddleware
+from backend.app.core.content_size import ContentSizeLimitMiddleware
 
 
 @asynccontextmanager
@@ -54,6 +56,15 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
         lifespan=lifespan,
     )
+
+    # Security headers
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        production=getattr(settings, "APP_ENV", "development") == "production",
+    )
+
+    # Content-size guard (10 MB default)
+    app.add_middleware(ContentSizeLimitMiddleware)
 
     # CORS
     app.add_middleware(
