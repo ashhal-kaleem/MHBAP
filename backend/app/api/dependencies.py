@@ -1,12 +1,14 @@
-"""dependencies.py — FastAPI reusable auth dependencies."""
+"""dependencies.py — FastAPI reusable auth and DB dependencies."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.security import decode_access_token
+from backend.app.db.session import get_db  # re-export for convenience
 
 _bearer = HTTPBearer(auto_error=False)
 

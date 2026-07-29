@@ -57,7 +57,13 @@ class SHAPExplainer:
         for head in heads:
             if head not in out:
                 continue
-            loss = out[head].sum()
+            head_val = out[head]
+            # TCMT numpy path returns numpy scalars/arrays, not tensors
+            import torch as _torch
+            if not isinstance(head_val, _torch.Tensor):
+                result[head] = self._heuristic_explain(vec, [head])[head]
+                continue
+            loss = head_val.sum()
             self._model.zero_grad()
             if leaf.grad is not None:
                 leaf.grad.zero_()
