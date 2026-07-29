@@ -7,10 +7,23 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.security import decode_access_token
+from backend.app.core.security import decode_access_token, is_token_blacklisted
 from backend.app.db.session import get_db  # re-export for convenience
 
 _bearer = HTTPBearer(auto_error=False)
+
+
+def get_bearer_token(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+) -> str:
+    """Return the raw bearer token string. Raises 401 if the header is missing."""
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return credentials.credentials
 
 
 def get_current_user(
@@ -30,6 +43,12 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(exc),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if is_token_blacklisted(payload.get("jti")):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
             headers={"WWW-Authenticate": "Bearer"},
         )
     user_id: Optional[str] = payload.get("sub")

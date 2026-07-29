@@ -20,6 +20,47 @@ from fastapi import Request, HTTPException, status
 _store: Dict[str, Deque[float]] = defaultdict(deque)
 _lock = Lock()
 
+# ── Account lockout store ─────────────────────────────────────────────────────
+
+_failed_logins: Dict[str, Deque[float]] = defaultdict(deque)
+_lockout_lock = Lock()
+
+LOCKOUT_MAX_ATTEMPTS = 5        # failed attempts before lockout
+LOCKOUT_WINDOW_SECONDS = 300    # 5-minute sliding window
+LOCKOUT_DURATION_SECONDS = 900  # 15-minute lockout after threshold
+
+
+def record_failed_login(identifier: str) -> None:
+    """Record a failed login attempt for *identifier* (email or IP)."""
+    now = time.monotonic()
+    with _lockout_lock:
+        dq = _failed_logins[identifier]
+        dq.append(now)
+
+
+def clear_failed_logins(identifier: str) -> None:
+    """Clear failed-login history on successful authentication."""
+    with _lockout_lock:
+        _failed_logins[identifier].clear()
+
+
+def check_account_lockout(identifier: str) -> None:
+    """Raise HTTP 429 if *identifier* is currently locked out."""
+    now = time.monotonic()
+    cutoff = now - LOCKOUT_WINDOW_SECONDS
+    with _lockout_lock:
+        dq = _failed_logins[identifier]
+        while dq and dq[0] < cutoff:
+            dq.popleft()
+        if len(dq) >= LOCKOUT_MAX_ATTEMPTS:
+            oldest = dq[0]
+            retry_after = int(LOCKOUT_WINDOW_SECONDS - (now - oldest)) + 1
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Account temporarily locked. Retry after {retry_after}s.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
 
 def _sliding_window_check(key: str, limit: int, window_seconds: int) -> Tuple[int, int]:
     """
@@ -63,7 +104,6 @@ def rate_limit(limit: int = 60, window_seconds: int = 60):
         ip = request.client.host if request.client else "unknown"
         key = f"rl:{ip}:{request.url.path}"
         remaining, _ = _sliding_window_check(key, limit, window_seconds)
-        # Attach headers for the response (best-effort — middleware would be cleaner)
         request.state.ratelimit_remaining = remaining
 
     return _dep

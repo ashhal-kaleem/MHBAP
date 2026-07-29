@@ -88,7 +88,7 @@ class TestRegister:
             "backend.app.api.v1.endpoints.auth.get_user_by_email",
             new=AsyncMock(return_value=_fake_user()),
         ):
-            r = client.post("/auth/register", json={"email": "alice@example.com", "password": "pw"})
+            r = client.post("/auth/register", json={"email": "alice@example.com", "password": "Secret1!"})
         assert r.status_code == 409
 
     def test_missing_email_is_422(self, client):
