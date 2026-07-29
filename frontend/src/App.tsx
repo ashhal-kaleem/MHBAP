@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import Dashboard from '@/pages/Dashboard'
 import AnalyticsPage from '@/pages/AnalyticsPage'
+import EvaluationPage from '@/pages/EvaluationPage'
 
-type Tab = 'dashboard' | 'analytics'
+type Tab = 'dashboard' | 'analytics' | 'evaluation'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
@@ -12,7 +13,7 @@ export default function App() {
       {/* Top nav */}
       <nav className="border-b border-gray-800 px-6 py-3 flex items-center gap-1">
         <span className="text-sm font-bold text-indigo-400 mr-6">MHBAP</span>
-        {(['dashboard', 'analytics'] as Tab[]).map((t) => (
+        {(['dashboard', 'analytics', 'evaluation'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -26,7 +27,7 @@ export default function App() {
       </nav>
 
       {/* Page content */}
-      {tab === 'dashboard' ? <Dashboard /> : <AnalyticsPage />}
+      {tab === 'dashboard' ? <Dashboard /> : tab === 'analytics' ? <AnalyticsPage /> : <EvaluationPage />}
     </div>
   )
 }

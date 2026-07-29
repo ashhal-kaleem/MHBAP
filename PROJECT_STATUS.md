@@ -15,8 +15,8 @@ Last updated: 2026-07-28
 | 7 | Session management UI + REST wiring | ✅ Complete | 2026-07-28 | 2026-07-29 |
 | 8 | Explainable AI polish | ✅ Complete | 2026-07-29 | 2026-07-29 |
 | 9 | Real-time streaming hardening (Redis) | ✅ Complete | 2026-07-29 | 2026-07-29 |
-| 10 | Data storage, analytics, exports | ⏳ In progress | 2026-07-29 | — |
-| 11 | Evaluation, benchmarks, ablations | ⏳ Pending | — | — |
+| 10 | Data storage, analytics, exports | ✅ Complete | 2026-07-29 | 2026-07-29 |
+| 11 | Evaluation, benchmarks, ablations | ⏳ In progress | 2026-07-29 | — |
 | 12 | Optimisation, Docker, publication cleanup | ⏳ Pending | — | — |
 
 ## Current blockers
