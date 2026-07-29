@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.db.session import get_db
-from backend.app.schemas.prediction import PredictionCreate, PredictionRead
+from backend.app.schemas.prediction import PredictionCreate, PredictionRead, XAISummary
 from backend.app.services import prediction_service
 
 router = APIRouter()
@@ -49,3 +49,17 @@ async def latest_session_prediction(
     if prediction is None:
         raise HTTPException(status_code=404, detail="No predictions yet for this session")
     return PredictionRead.model_validate(prediction)
+
+
+@router.get("/session/{session_id}/xai", response_model=XAISummary)
+async def session_xai_summary(
+    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> XAISummary:
+    """
+    Aggregate SHAP weights across all predictions for a session.
+    Returns per-head average modality contributions + time-series trends.
+    """
+    summary = await prediction_service.get_xai_summary(db, session_id)
+    if summary is None:
+        raise HTTPException(status_code=404, detail="No predictions for this session")
+    return summary

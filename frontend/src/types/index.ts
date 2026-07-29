@@ -59,6 +59,19 @@ export interface WsMessage {
   payload: WsPayload
 }
 
+export interface ModalityTrend {
+  time: string               // ISO datetime
+  weights: Record<string, number>
+}
+
+export interface XAISummary {
+  session_id: string
+  prediction_count: number
+  avg_weights: Record<string, Record<string, number>>  // head -> modality -> avg
+  trends: Record<string, ModalityTrend[]>              // head -> trend series
+  dominant_modality: string | null
+}
+
 export type ConnectionStatus = 'connecting' | 'open' | 'closed' | 'error'
 
 export interface MetricSeries {

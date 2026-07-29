@@ -1,4 +1,4 @@
-import type { Prediction, Session, SessionStats, User } from '@/types'
+import type { Prediction, Session, SessionStats, User, XAISummary } from '@/types'
 
 const BASE = '/api/v1'
 
@@ -70,6 +70,9 @@ export const listSessionPredictions = (sessionId: string, limit = 1000) =>
 
 export const latestSessionPrediction = (sessionId: string) =>
   json<Prediction>(`/predictions/session/${sessionId}/latest`)
+
+export const getXAISummary = (sessionId: string) =>
+  json<XAISummary>(`/predictions/session/${sessionId}/xai`)
 
 // Health
 export const getHealth = () =>

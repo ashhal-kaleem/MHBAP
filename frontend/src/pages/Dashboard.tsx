@@ -3,6 +3,7 @@ import { Activity } from 'lucide-react'
 import { useStream } from '@/hooks/useStream'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useHistoricalPredictions } from '@/hooks/useHistoricalPredictions'
+import { useXAISummary } from '@/hooks/useXAISummary'
 import { StatusBadge } from '@/components/StatusBadge'
 import { MetricGauge } from '@/components/MetricGauge'
 import { EmotionBar } from '@/components/EmotionBar'
@@ -36,6 +37,8 @@ export default function Dashboard() {
 
   const stream = useStream(isLive ? liveSessionId : null)
   const historical = useHistoricalPredictions(!isLive ? activeSession!.id : null)
+  const xaiSummaryId = activeSession?.status === 'completed' ? activeSession.id : null
+  const { summary: xaiSummary, loading: xaiLoading } = useXAISummary(xaiSummaryId)
 
   const status = isLive ? stream.status : 'closed'
   const history = isLive ? stream.history : historical.history
@@ -111,10 +114,17 @@ export default function Dashboard() {
             label={p?.emotion_label ?? '—'}
             scores={p?.emotion_scores ?? {}}
           />
-          <XAIPanel
-            weights={p?.shap_weights ?? null}
-            explanation={p?.explanation_text ?? null}
-          />
+          {isLive ? (
+            <XAIPanel
+              weights={p?.shap_weights ?? null}
+              explanation={p?.explanation_text ?? null}
+            />
+          ) : (
+            <XAIPanel
+              summary={xaiSummary}
+              summaryLoading={xaiLoading}
+            />
+          )}
         </div>
 
         {/* Time-series */}

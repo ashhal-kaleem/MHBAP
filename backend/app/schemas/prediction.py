@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -34,3 +34,23 @@ class PredictionRead(BaseModel):
     fatigue: float
     shap_weights: Dict[str, float]
     explanation_text: str
+
+
+class ModalityTrend(BaseModel):
+    """Time-ordered modality weight for one head — used in XAI timeline charts."""
+    time: datetime
+    weights: Dict[str, float]     # {modality: normalised_weight}
+
+
+class XAISummary(BaseModel):
+    """
+    Session-level XAI aggregation.
+    avg_weights: averaged SHAP weights per prediction head.
+    trends:      per-head time series of modality weights (for trend charts).
+    dominant_modality: highest average contributor across all heads.
+    """
+    session_id: uuid.UUID
+    prediction_count: int
+    avg_weights: Dict[str, Dict[str, float]]  # {head: {modality: avg_weight}}
+    trends: Dict[str, List[ModalityTrend]]    # {head: [ModalityTrend]}
+    dominant_modality: Optional[str]
