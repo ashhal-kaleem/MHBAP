@@ -33,3 +33,20 @@ class SessionRead(BaseModel):
     session_metadata: Optional[dict]
     started_at: datetime
     ended_at: Optional[datetime]
+
+
+class SessionStats(BaseModel):
+    """Aggregated stats for a single session — returned by GET /sessions/{id}/stats."""
+    session_id: uuid.UUID
+    prediction_count: int
+    duration_seconds: Optional[float]   # None if session still active or ended_at missing
+    avg_stress: Optional[float]
+    avg_engagement: Optional[float]
+    avg_attention: Optional[float]
+    avg_fatigue: Optional[float]
+    dominant_emotion: Optional[str]
+
+
+class SessionContextUpdate(BaseModel):
+    """Payload for PATCH /sessions/{id}/context — updates the human-readable label."""
+    context: str

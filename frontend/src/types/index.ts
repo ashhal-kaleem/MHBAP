@@ -4,8 +4,8 @@ export interface Prediction {
   session_id: string
   /** ISO datetime — canonical field from DB schema */
   time: string
-  /** Alias for time — sent by both /demo and /session endpoints */
-  recorded_at: string
+  /** Alias for time — sent by WS endpoints; absent on plain REST reads, fall back to `time` */
+  recorded_at?: string
   emotion_label: string
   emotion_scores: Record<string, number>
   stress: number               // [0, 1]
@@ -22,7 +22,29 @@ export interface Session {
   started_at: string
   ended_at: string | null
   status: 'active' | 'completed' | 'error'
-  context: string | null
+  context: string
+  consent_recording: boolean
+  faces_blurred: boolean
+  session_metadata: Record<string, unknown> | null
+}
+
+export interface SessionStats {
+  session_id: string
+  prediction_count: number
+  duration_seconds: number | null
+  avg_stress: number | null
+  avg_engagement: number | null
+  avg_attention: number | null
+  avg_fatigue: number | null
+  dominant_emotion: string | null
+}
+
+export interface User {
+  id: string
+  username: string
+  email: string
+  role: string
+  created_at: string
 }
 
 export type WsPayload =

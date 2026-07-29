@@ -1,0 +1,280 @@
+/**
+ * SessionPanel — session lifecycle control + history list.
+ *
+ * Features:
+ *  - Start / End session
+ *  - Demo mode toggle
+ *  - Per-session: delete, rename context, CSV export
+ *  - Inline stats card for completed sessions
+ */
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { clsx } from 'clsx'
+import { Download, Edit2, History, Play, Radio, Square, Trash2, X } from 'lucide-react'
+import {
+  createSession,
+  deleteSession,
+  endSession,
+  exportSessionCsv,
+  listUserSessions,
+  updateSessionContext,
+} from '@/services/api'
+import { useSessionStats } from '@/hooks/useSessionStats'
+import { SessionStatsCard } from './SessionStatsCard'
+import type { Session, User } from '@/types'
+
+interface SessionPanelProps {
+  user: User | null
+  activeSession: Session | null
+  onSelectSession: (session: Session | null) => void
+}
+
+function formatDateTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    })
+  } catch {
+    return iso
+  }
+}
+
+const STATUS_STYLE: Record<Session['status'], string> = {
+  active:    'bg-green-500/15 text-green-400',
+  completed: 'bg-gray-500/15 text-gray-400',
+  error:     'bg-red-500/15 text-red-400',
+}
+
+export function SessionPanel({ user, activeSession, onSelectSession }: SessionPanelProps) {
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Context editing state
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const editInputRef = useRef<HTMLInputElement>(null)
+
+  // Stats for active/selected completed session
+  const completedId = activeSession?.status === 'completed' ? activeSession.id : null
+  const { stats, loading: statsLoading, refetch: refetchStats } = useSessionStats(completedId)
+
+  const refresh = useCallback(async () => {
+    if (!user) return
+    try {
+      const list = await listUserSessions(user.id)
+      setSessions(list)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load sessions')
+    }
+  }, [user])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  // Focus the rename input when it opens
+  useEffect(() => {
+    if (editingId) editInputRef.current?.focus()
+  }, [editingId])
+
+  const handleStart = async () => {
+    if (!user || busy) return
+    setBusy(true); setError(null)
+    try {
+      const session = await createSession(user.id, 'live')
+      setSessions((prev) => [session, ...prev])
+      onSelectSession(session)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start session')
+    } finally { setBusy(false) }
+  }
+
+  const handleEnd = async () => {
+    if (!activeSession || busy) return
+    setBusy(true); setError(null)
+    try {
+      const ended = await endSession(activeSession.id)
+      setSessions((prev) => prev.map((s) => (s.id === ended.id ? ended : s)))
+      onSelectSession(ended)
+      refetchStats()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to end session')
+    } finally { setBusy(false) }
+  }
+
+  const handleDelete = async (s: Session) => {
+    if (!window.confirm(`Delete session from ${formatDateTime(s.started_at)}? This also removes all predictions.`)) return
+    setBusy(true); setError(null)
+    try {
+      await deleteSession(s.id)
+      setSessions((prev) => prev.filter((x) => x.id !== s.id))
+      if (activeSession?.id === s.id) onSelectSession(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed')
+    } finally { setBusy(false) }
+  }
+
+  const startEditing = (s: Session) => {
+    setEditingId(s.id)
+    setEditValue(s.context)
+  }
+
+  const cancelEditing = () => setEditingId(null)
+
+  const commitContext = async (sessionId: string) => {
+    const trimmed = editValue.trim()
+    if (!trimmed) { cancelEditing(); return }
+    setBusy(true); setError(null)
+    try {
+      const updated = await updateSessionContext(sessionId, trimmed)
+      setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
+      if (activeSession?.id === updated.id) onSelectSession(updated)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Rename failed')
+    } finally { setBusy(false); setEditingId(null) }
+  }
+
+  const handleExport = async (sessionId: string) => {
+    setBusy(true); setError(null)
+    try {
+      await exportSessionCsv(sessionId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export failed')
+    } finally { setBusy(false) }
+  }
+
+  const isLive = activeSession?.status === 'active'
+
+  return (
+    <div className="rounded-xl bg-gray-800 p-5">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-200">Session</p>
+        <div className="flex items-center gap-2">
+          {!isLive ? (
+            <button
+              onClick={handleStart}
+              disabled={!user || busy}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Play className="h-3.5 w-3.5" /> New Session
+            </button>
+          ) : (
+            <button
+              onClick={handleEnd}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Square className="h-3.5 w-3.5" /> End Session
+            </button>
+          )}
+          <button
+            onClick={() => onSelectSession(null)}
+            className={clsx(
+              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition',
+              activeSession === null
+                ? 'bg-gray-700 text-white'
+                : 'bg-gray-900 text-gray-400 hover:bg-gray-700',
+            )}
+          >
+            <Radio className="h-3.5 w-3.5" /> Demo
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+
+      {/* History list */}
+      <div className="mt-4">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-gray-400">
+          <History className="h-3.5 w-3.5" /> History
+        </p>
+        {!user && <p className="text-xs text-gray-500">Loading user…</p>}
+        {user && sessions.length === 0 && (
+          <p className="text-xs text-gray-500">No sessions yet — start one above.</p>
+        )}
+        <ul className="max-h-52 space-y-1 overflow-y-auto pr-1">
+          {sessions.map((s) => (
+            <li key={s.id}>
+              {editingId === s.id ? (
+                /* Inline rename editor */
+                <div className="flex items-center gap-1 rounded-lg bg-gray-700 px-2 py-1">
+                  <input
+                    ref={editInputRef}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitContext(s.id)
+                      if (e.key === 'Escape') cancelEditing()
+                    }}
+                    className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-gray-500"
+                    placeholder="Context label…"
+                    maxLength={120}
+                  />
+                  <button onClick={() => commitContext(s.id)} className="text-green-400 hover:text-green-300 text-xs px-1">✓</button>
+                  <button onClick={cancelEditing} className="text-gray-400 hover:text-gray-300"><X className="h-3 w-3" /></button>
+                </div>
+              ) : (
+                /* Normal row */
+                <div
+                  className={clsx(
+                    'group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition',
+                    activeSession?.id === s.id ? 'bg-gray-700' : 'hover:bg-gray-900',
+                  )}
+                >
+                  <button
+                    onClick={() => onSelectSession(s)}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    <span className={clsx('text-xs', activeSession?.id === s.id ? 'text-white' : 'text-gray-400')}>
+                      <span className="font-mono">{formatDateTime(s.started_at)}</span>
+                      {s.context && s.context !== 'unspecified' && s.context !== 'live' && (
+                        <span className="ml-1.5 text-gray-500">· {s.context}</span>
+                      )}
+                    </span>
+                    <span className={clsx('ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', STATUS_STYLE[s.status])}>
+                      {s.status}
+                    </span>
+                  </button>
+
+                  {/* Action buttons — visible on hover or when row is active */}
+                  <div className={clsx('flex shrink-0 items-center gap-0.5', activeSession?.id === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
+                    <button
+                      title="Rename context"
+                      onClick={() => startEditing(s)}
+                      className="rounded p-1 text-gray-400 hover:bg-gray-600 hover:text-white"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                    {s.status === 'completed' && (
+                      <button
+                        title="Export CSV"
+                        onClick={() => handleExport(s.id)}
+                        disabled={busy}
+                        className="rounded p-1 text-gray-400 hover:bg-gray-600 hover:text-white disabled:opacity-40"
+                      >
+                        <Download className="h-3 w-3" />
+                      </button>
+                    )}
+                    <button
+                      title="Delete session"
+                      onClick={() => handleDelete(s)}
+                      disabled={busy}
+                      className="rounded p-1 text-gray-400 hover:bg-red-900 hover:text-red-400 disabled:opacity-40"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Stats card for completed sessions */}
+      {stats && <SessionStatsCard stats={stats} loading={statsLoading} />}
+      {completedId && !stats && statsLoading && (
+        <p className="mt-3 text-xs text-gray-500">Loading stats…</p>
+      )}
+    </div>
+  )
+}

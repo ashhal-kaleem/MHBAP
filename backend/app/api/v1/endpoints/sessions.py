@@ -8,13 +8,21 @@ POST   /api/v1/sessions/{id}/end    convenience: mark completed now
 """
 from __future__ import annotations
 
+import io
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.db.session import get_db
-from backend.app.schemas.session import SessionCreate, SessionRead, SessionUpdate
+from backend.app.schemas.session import (
+    SessionContextUpdate,
+    SessionCreate,
+    SessionRead,
+    SessionStats,
+    SessionUpdate,
+)
 from backend.app.services import session_service
 
 router = APIRouter()
@@ -62,3 +70,63 @@ async def end_session(
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return SessionRead.model_validate(session)
+
+
+@router.delete("/{session_id}", status_code=204)
+async def delete_session(
+    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> None:
+    deleted = await session_service.delete_session(db, session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+
+@router.patch("/{session_id}/context", response_model=SessionRead)
+async def update_context(
+    session_id: uuid.UUID, data: SessionContextUpdate, db: AsyncSession = Depends(get_db)
+) -> SessionRead:
+    session = await session_service.update_session_context(db, session_id, data)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return SessionRead.model_validate(session)
+
+
+@router.get("/{session_id}/stats", response_model=SessionStats)
+async def session_stats(
+    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> SessionStats:
+    stats = await session_service.get_session_stats(db, session_id)
+    if stats is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return stats
+
+
+@router.get("/{session_id}/export/csv")
+async def export_session_csv(
+    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> StreamingResponse:
+    """Stream predictions for a session as a CSV file for offline analysis."""
+    from backend.app.services.prediction_service import list_predictions_for_session  # local import avoids circular
+
+    session = await session_service.get_session(db, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    predictions = await list_predictions_for_session(db, session_id)
+
+    buf = io.StringIO()
+    buf.write("time,session_id,emotion_label,stress,engagement,attention,fatigue,explanation_text\n")
+    for p in predictions:
+        buf.write(
+            f"{p.time.isoformat()},{p.session_id},{p.emotion_label},"
+            f"{p.stress:.4f},{p.engagement:.4f},{p.attention:.4f},{p.fatigue:.4f},"
+            f'"{(p.explanation_text or "").replace(chr(34), chr(39))}"\n'
+        )
+    buf.seek(0)
+
+    filename = f"mhbap_session_{session_id}.csv"
+    return StreamingResponse(
+        iter([buf.read()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
