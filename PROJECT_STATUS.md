@@ -16,8 +16,8 @@ Last updated: 2026-07-28
 | 8 | Explainable AI polish | ✅ Complete | 2026-07-29 | 2026-07-29 |
 | 9 | Real-time streaming hardening (Redis) | ✅ Complete | 2026-07-29 | 2026-07-29 |
 | 10 | Data storage, analytics, exports | ✅ Complete | 2026-07-29 | 2026-07-29 |
-| 11 | Evaluation, benchmarks, ablations | ⏳ In progress | 2026-07-29 | — |
-| 12 | Optimisation, Docker, publication cleanup | ⏳ Pending | — | — |
+| 11 | Evaluation, benchmarks, ablations | ✅ Complete | 2026-07-29 | 2026-07-29 |
+| 12 | Optimisation, Docker, publication cleanup | ✅ Complete | 2026-07-29 | 2026-07-29 |
 
 ## Current blockers
 _None_
