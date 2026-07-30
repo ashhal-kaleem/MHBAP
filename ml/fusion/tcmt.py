@@ -5,7 +5,7 @@ Architecture
 ------------
 Input : (B, T, 58) float32  — B=batch, T=time steps, 58 feature dims
 Output: dict of 5 head tensors:
-  emotion_logits : (B, 8)   — 8-class softmax
+  emotion_logits : (B, 4)   — 4-class: 0=neutral,1=happy,2=sad,3=angry
   stress         : (B, 1)   — sigmoid → [0, 10] scaled
   engagement     : (B, 1)   — sigmoid → [0, 1]
   attention      : (B, 1)   — sigmoid → [0, 1]
@@ -46,7 +46,7 @@ for _m, _ks in MODALITY_KEYS.items():
 D_MODEL  = 64
 N_HEADS  = 4
 N_LAYERS = 2
-EMOTION_CLASSES = 8
+EMOTION_CLASSES = 4   # 0=neutral, 1=happy, 2=sad, 3=angry
 
 
 if _TORCH_AVAILABLE:

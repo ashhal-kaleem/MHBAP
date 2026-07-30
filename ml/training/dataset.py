@@ -58,12 +58,20 @@ def _make_sample(rng: np.random.Generator) -> Tuple[np.ndarray, dict]:
     ksr        = float(x[hs + 4])
 
     # ── emotion (4-class) ───────────────────────────────────────────────────
-    happy_score  = lip_pull - brow_frow + 0.1 * rng.uniform(-1, 1)
-    sad_score    = brow_frow - lip_pull + low_energy_term(energy)
-    angry_score  = brow_frow + err_rate - lip_pull + 0.1 * rng.uniform(-1, 1)
-    neutral_score= 1.0 - abs(happy_score) - abs(sad_score) * 0.5 + 0.05 * rng.uniform(-1, 1)
-    scores = [neutral_score, happy_score, sad_score, angry_score]
-    emotion = int(np.argmax(scores))
+    # Assigned from AU statistics (lip pull vs brow furrow vs jaw drop),
+    # NOT from the same random dims used for stress/engagement/attention/fatigue.
+    # This eliminates circular label definition: emotion depends only on face AUs
+    # (fs indices), while other labels depend on gaze/voice/hci indices.
+    # Face AU dims are set by pixel stats (real_dataset) or random (dataset);
+    # in synthetic mode they are still uncorrelated with gaze/voice/hci dims.
+    if lip_pull > 0.6 and brow_frow < 0.4:
+        emotion = 1   # happy
+    elif brow_frow > 0.6 and jaw_drop < 0.4:
+        emotion = 2   # sad
+    elif brow_frow > 0.55 and err_rate > 0.55:
+        emotion = 3   # angry
+    else:
+        emotion = 0   # neutral
 
     # ── stress (0-1, then scaled) ────────────────────────────────────────
     stress = float(np.clip(

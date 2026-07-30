@@ -158,10 +158,19 @@ def train(
                 "n_train": len(train_split["X"]),
                 "n_val":   len(val_split["X"]),
                 "n_test":  len(test_split["X"])}, save_path)
+    # Annotate proxy labels so readers know which metrics are GT vs synthetic
+    annotated = dict(test_metrics)
+    annotated["_label_provenance"] = {
+        "emotion":    "REAL - FER2013/RAF-DB dataset class annotations",
+        "stress":     "MIXED - WESAD GT physio (stress samples) + AU/HCI proxy (emotion samples)",
+        "engagement": "PROXY - derived from random noise dims; no public GT dataset",
+        "attention":  "PROXY - derived from random noise dims; no public GT dataset",
+        "fatigue":    "PROXY - derived from random noise dims; no public GT dataset",
+    }
     METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    METRICS_PATH.write_text(json.dumps(test_metrics, indent=2))
-    print(f"[TCMT] Saved weights -> {save_path}", flush=True)
-    print(f"[TCMT] Saved metrics -> {METRICS_PATH}", flush=True)
+    METRICS_PATH.write_text(json.dumps(annotated, indent=2))
+    print(f"[TCMT] Saved weights: {save_path}", flush=True)
+    print(f"[TCMT] Saved metrics: {METRICS_PATH}", flush=True)
     return test_metrics
 
 
