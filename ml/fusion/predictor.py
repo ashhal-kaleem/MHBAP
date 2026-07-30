@@ -83,10 +83,22 @@ class BehaviourPredictor:
             import torch
             self._tcmt.eval()
             wp = weights_path or WEIGHTS_PATH
+            # Fallback: trainer saves as tcmt_trained.pt; accept either name.
+            if not wp.exists():
+                alt = wp.parent / "tcmt_trained.pt"
+                if alt.exists():
+                    wp = alt
             if wp.exists():
-                self._tcmt.load_state_dict(
-                    torch.load(str(wp), map_location="cpu", weights_only=True)
+                raw = torch.load(str(wp), map_location="cpu", weights_only=True)
+                # train_tcmt.py wraps weights in {"state_dict": ..., "test_metrics": ...}.
+                # Handle both the wrapper-dict format and a bare state_dict for
+                # backward-compatibility with any legacy checkpoints saved directly.
+                state_dict = (
+                    raw["state_dict"]
+                    if isinstance(raw, dict) and "state_dict" in raw
+                    else raw
                 )
+                self._tcmt.load_state_dict(state_dict)
                 logger.info("TCMT weights loaded from %s", wp)
             else:
                 logger.info(

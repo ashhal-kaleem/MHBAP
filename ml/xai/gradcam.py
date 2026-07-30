@@ -21,7 +21,7 @@ class GradCAM:
     """
     Gradient-weighted Class Activation Map over face AU features.
 
-    Uses forward activations from the face projection layer, weighted by
+    Uses forward activations from the face projection linear layer, weighted by
     the gradient of the chosen head output w.r.t. those activations.
     Falls back to weight-norm saliency if the gradient path yields zeros.
     """
@@ -33,8 +33,14 @@ class GradCAM:
         self._gradients:   Optional[np.ndarray] = None
         self._hook_handles = []
 
+    def _get_linear_layer(self):
+        proj = self._model.mod_proj.projs["face"]
+        if hasattr(proj, "__getitem__"):
+            return proj[0]  # nn.Sequential(nn.Linear, nn.LayerNorm)[0] -> nn.Linear
+        return proj
+
     def _register_hooks(self) -> None:
-        face_layer = self._model.mod_proj.projs["face"]   # nn.Linear(12, 64)
+        face_layer = self._get_linear_layer()
 
         def fwd_hook(module, inp, out):
             self._activations = out.detach().cpu().numpy()
@@ -95,18 +101,19 @@ class GradCAM:
             self._model.zero_grad()
             out_val.backward()
 
-            face_W = self._model.mod_proj.projs["face"].weight.detach().cpu().numpy()  # (64,12)
+            face_layer = self._get_linear_layer()
+            face_W = face_layer.weight.detach().cpu().numpy()  # (D_MODEL, 12)
 
             if (self._activations is not None and self._gradients is not None):
                 # Standard GradCAM: weight activations by mean gradient
                 weights = self._gradients.mean(axis=-1, keepdims=True)  # (B,1)
-                cam     = (self._activations * weights).sum(axis=0)     # (64,)
+                cam     = (self._activations * weights).sum(axis=0)     # (D_MODEL,)
                 cam_relu = np.maximum(cam, 0)
                 au_sal  = np.abs(face_W.T @ cam_relu)   # (12,)
 
                 if au_sal.max() < 1e-8:
                     # Fallback: gradient magnitudes projected through weight matrix
-                    grad_mag = np.abs(self._gradients).mean(axis=0)  # (64,)
+                    grad_mag = np.abs(self._gradients).mean(axis=0)  # (D_MODEL,)
                     au_sal   = np.abs(face_W.T @ grad_mag)
             else:
                 au_sal = np.zeros(FACE_DIM, dtype=np.float32)

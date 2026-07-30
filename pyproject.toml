@@ -107,4 +107,4 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["backend/tests", "ml/tests"]
-addopts = "-v --cov=backend --cov=ml --cov-report=term-missing"
+addopts = "-v --cov=backend --cov=ml --cov-report=term-missing --cov-data-file=.coverage"

@@ -1,11 +1,19 @@
 """
-benchmark.py — Real TCMT benchmark (Phase F).
+benchmark.py — Real TCMT benchmark using the held-out real test split.
 
-Replaces the random-simulation approach with actual model inference
-on a held-out synthetic test split. Each "modality" ablation zeros out
-that modality's feature slice before passing through TCMT.
+Data source
+-----------
+Loads ``ml/datasets/processed/eval_test_split.npz``, which is generated
+by ``scripts/cache_eval_test_split.py``.  This file contains the exact same
+test split that was produced by ``make_real_dataset(seed=42)`` during training
+(deterministic shuffle → same rows), so metrics computed here are directly
+comparable to the values stored in ``tcmt_eval_metrics.json``.
 
-Falls back gracefully to the original simulation if weights not found.
+Raises ``RuntimeError`` explicitly when:
+  - The cached test split is not found  (run scripts/cache_eval_test_split.py)
+  - The TCMT checkpoint is not found    (run python -m ml.training.train_tcmt)
+
+There is NO silent fallback to synthetic data.
 """
 from __future__ import annotations
 
@@ -15,8 +23,11 @@ import numpy as np
 
 from backend.app.evaluation.metrics import EvaluationReport, compute_report
 
-WEIGHT_PATH = Path(__file__).parent.parent.parent.parent / \
-    "ml" / "models" / "weights" / "tcmt_trained.pt"
+# ── paths ──────────────────────────────────────────────────────────────────────
+_REPO_ROOT = Path(__file__).parent.parent.parent.parent
+
+WEIGHT_PATH = _REPO_ROOT / "ml" / "models" / "weights" / "tcmt_trained.pt"
+TEST_SPLIT_PATH = _REPO_ROOT / "ml" / "datasets" / "processed" / "eval_test_split.npz"
 
 MODALITIES = ["facial", "audio", "physiological", "hci"]
 
@@ -31,29 +42,67 @@ _MOD_MAP = {
 EMOTION_LABELS = {0: "neutral", 1: "happy", 2: "sad", 3: "angry"}
 
 
+# ── data / model loading ────────────────────────────────────────────────────────
+
+def _load_real_test_data(n_samples: int) -> dict:
+    """
+    Load the real held-out test split from the cached .npz file.
+
+    Raises
+    ------
+    RuntimeError
+        If the cache file does not exist.  Run ``python scripts/cache_eval_test_split.py``
+        to generate it from the same HuggingFace datasets used during training.
+    """
+    if not TEST_SPLIT_PATH.exists():
+        raise RuntimeError(
+            f"Real evaluation test split not found at:\n  {TEST_SPLIT_PATH}\n\n"
+            "Generate it by running:\n"
+            "    python scripts/cache_eval_test_split.py\n\n"
+            "This script downloads FER2013 + WESAD from HuggingFace (same as training), "
+            "splits with seed=42, and saves the test portion to the path above."
+        )
+    data = dict(np.load(str(TEST_SPLIT_PATH)))
+    # Trim to requested n_samples (cached split may be larger)
+    n = min(n_samples, len(data["X"]))
+    return {k: v[:n] for k, v in data.items()}
+
+
 def _load_model():
-    """Load trained TCMT; return None if weights missing."""
+    """
+    Load the trained TCMT checkpoint.
+
+    Raises
+    ------
+    RuntimeError
+        If the checkpoint file does not exist.
+    """
     try:
         import torch
         from ml.fusion.tcmt import TCMT
-        if not WEIGHT_PATH.exists():
-            return None
-        ckpt  = torch.load(str(WEIGHT_PATH), map_location="cpu")
-        model = TCMT()
-        model.load_state_dict(ckpt["state_dict"])
-        model.eval()
-        return model
-    except Exception:
-        return None
+    except ImportError as exc:
+        raise RuntimeError(f"PyTorch / TCMT not importable: {exc}") from exc
+
+    if not WEIGHT_PATH.exists():
+        raise RuntimeError(
+            f"TCMT checkpoint not found at:\n  {WEIGHT_PATH}\n\n"
+            "Train the model first:\n"
+            "    python -m ml.training.train_tcmt"
+        )
+
+    ckpt = torch.load(str(WEIGHT_PATH), map_location="cpu")
+    state_dict = (
+        ckpt["state_dict"]
+        if isinstance(ckpt, dict) and "state_dict" in ckpt
+        else ckpt
+    )
+    model = TCMT()
+    model.load_state_dict(state_dict)
+    model.eval()
+    return model
 
 
-def _get_test_data(n_samples: int = 1000, seed: int = 42):
-    """Return test split from deterministic dataset."""
-    from ml.training.dataset import make_dataset
-    _, _, test = make_dataset(n_samples=max(n_samples * 7, 3000), seed=seed)
-    # Trim to n_samples
-    return {k: v[:n_samples] for k, v in test.items()}
-
+# ── inference with modality masking ────────────────────────────────────────────
 
 def _infer_with_mask(model, X: np.ndarray, masked_mods: List[str]) -> np.ndarray:
     """Run TCMT inference with selected modalities zeroed out."""
@@ -68,13 +117,11 @@ def _infer_with_mask(model, X: np.ndarray, masked_mods: List[str]) -> np.ndarray
     Xt = torch.tensor(Xm, dtype=torch.float32)
     with torch.no_grad():
         out = model(Xt)
-    logits = np.array(out["emotion_logits"])   # (N, 8) or (N, 4)
-    # Map 8-class logits to 4-class for EMOTION_LABELS
-    n_cls = logits.shape[1]
-    if n_cls > 4:
-        logits = logits[:, :4]   # take first 4 classes
+    logits = np.array(out["emotion_logits"])   # (N, 4)
     return logits.argmax(axis=1)
 
+
+# ── public API ──────────────────────────────────────────────────────────────────
 
 def run_benchmark(
     n_samples: int = 1000,
@@ -82,38 +129,55 @@ def run_benchmark(
     modalities: Optional[List[str]] = None,
 ) -> List[EvaluationReport]:
     """
-    Evaluate each modality independently plus the full fusion model.
-    Uses real TCMT inference. Falls back to simulation if no weights.
+    Evaluate each modality independently (masking all others) plus the full
+    fusion model, using the real held-out test split.
+
+    Parameters
+    ----------
+    n_samples:
+        Maximum number of test samples to use (capped by the cached split size).
+    seed:
+        Informational only — the test split is already fixed by training seed=42.
+    modalities:
+        Which modality subsets to benchmark.  Defaults to all four.
+
+    Returns
+    -------
+    List of EvaluationReport (one per modality + one for "fusion").
+
+    Raises
+    ------
+    RuntimeError
+        If the test split cache or checkpoint is missing.
     """
     active = modalities or MODALITIES
-    model  = _load_model()
+    data = _load_real_test_data(n_samples)
+    model = _load_model()
 
-    if model is None:
-        # Graceful fallback — original simulation
-        from backend.app.evaluation.benchmark import run_benchmark as _sim
-        return _sim(n_samples=n_samples, seed=seed, modalities=modalities)
-
-    data   = _get_test_data(n_samples=n_samples, seed=seed)
-    X      = data["X"]
-    y_true = (data["emotion"] % 4).tolist()   # clip to 4-class
+    X = data["X"]
+    y_true = (data["emotion"] % 4).tolist()   # always in {0,1,2,3}
 
     reports: List[EvaluationReport] = []
 
-    # Per-modality: zero out ALL OTHER modalities
+    # Per-modality: zero out ALL OTHER modalities, keep only this one
     for mod in active:
         keep = _MOD_MAP.get(mod, [mod])
         all_mods = [m for mlist in _MOD_MAP.values() for m in mlist]
         mask_out = [m for m in all_mods if m not in keep]
-        y_pred   = _infer_with_mask(model, X, mask_out).tolist()
+        y_pred = _infer_with_mask(model, X, mask_out).tolist()
         reports.append(compute_report(
-            name=mod, y_true=y_true, y_pred=y_pred,
+            name=mod,
+            y_true=y_true,
+            y_pred=y_pred,
             label_names=EMOTION_LABELS,
         ))
 
     # Full fusion (no masking)
     y_pred_full = _infer_with_mask(model, X, []).tolist()
     reports.append(compute_report(
-        name="fusion", y_true=y_true, y_pred=y_pred_full,
+        name="fusion",
+        y_true=y_true,
+        y_pred=y_pred_full,
         label_names=EMOTION_LABELS,
     ))
 

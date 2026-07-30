@@ -178,3 +178,59 @@ The saved metrics are authentic — they were not manually edited.
 5. **Add ablation**: compare TCMT vs a label-from-feature oracle (linear regression
    directly on x) to quantify how much performance comes from the label bias.
 6. **Report corrected metrics** after retraining with 4-class head.
+
+---
+
+## POST-AUDIT RETRAINING HISTORY
+
+All retrains use real public datasets (FER2013, RAF-DB, WESAD) with no synthetic
+label injection. Full details in `BENCHMARK.md`.
+
+### v2 — First clean retrain (commit b5f9407)
+- EMOTION_CLASSES fixed to 4; circular bias removed.
+- **Bug discovered**: `load_fer2013`/`load_rafdb` iterated HF streaming in raw
+  shard order (class-sorted). Resulted in 54% class-3 skew. Emotion head
+  collapsed: classes 1 and 2 received F1=0.0.
+- Results: accuracy=0.767, macro_F1=0.451 (**misleading** — only 2 of 4 classes
+  predicted; macro average inflated by dominant classes).
+
+### v3 — Streaming shuffle fix
+- Added `ds.shuffle(seed, buffer_size=4000)` to FER2013 and RAF-DB loaders.
+- Added inverse-frequency `CrossEntropyLoss` class weights.
+- All 4 classes predicted. Results: accuracy=0.513, macro_F1=0.390.
+- Remaining weakness: class 3 (angry) F1=0.08 due to only ~198 training samples.
+
+### v4 — WeightedRandomSampler (regressed)
+- Added `WeightedRandomSampler` oversampling. However, `FER_TO_MHBAP` still mapped
+  both Angry(0) and Disgust(1) → class 3, double-counting that class source.
+  Sampler over-corrected, causing class 1 to collapse (F1=0.0). Worse overall.
+- Results: accuracy=0.273, macro_F1=0.253.
+
+### v5 — Corrected class mapping + all fixes (FINAL)
+- Fixed `FER_TO_MHBAP`: Disgust(1) remapped 3→2 (sad/fearful) to stop
+  double-counting angry class. `RAF_TO_MHBAP` Disgust(3) updated consistently.
+- `WeightedRandomSampler` + weighted CE loss retained.
+- **This is the authoritative committed result.** See `BENCHMARK.md` for full table.
+- Results: see `ml/models/weights/tcmt_eval_metrics.json`.
+
+---
+
+## POST-AUDIT DATA LEAKAGE VERIFICATION (scripts/verify_pipeline.py)
+
+Independent verification run after v5 training confirms:
+
+| Check | Result |
+|---|---|
+| train ∩ val = ∅ | PASS |
+| train ∩ test = ∅ | PASS |
+| val ∩ test = ∅ | PASS |
+| No global normalization leakage | PASS |
+| Emotion label not linearly decodable (LogReg acc < 0.70) | PASS |
+| Some real AU signal present (LogReg acc > chance) | PASS |
+| Saved metrics match recomputed from checkpoint | PASS |
+| JSON metrics file matches checkpoint | PASS |
+| Stress labels in [0,1] | PASS |
+| Stress RMSE < 0.20 (scaling not broken) | PASS |
+| Train/test class distributions differ | PASS |
+
+Full verification output in `scripts/classification_report.txt`.

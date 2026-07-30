@@ -1,0 +1,104 @@
+============================================================
+TCMT Retraining v4 -- WeightedRandomSampler for minority classes
+Fixes vs v3:
+  1. WeightedRandomSampler (oversample class 3, ~198 samples)
+  2. Weighted CE loss retained
+  3. 50 epochs
+============================================================
+[real_dataset] Loading real datasets...
+[real_dataset] FER2013 (clip-benchmark/wds_fer2013)...
+  FER2013 [train] 3000 samples
+  FER2013 [test] 3000 samples
+[real_dataset] RAF-DB (deanngkl/raf-db-7emotions)...
+'HTTPSConnectionPool(host='us.aws.cdn.hf.co', port=443): Read timed out.' thrown while requesting GET https://huggingface.co/datasets/deanngkl/raf-db-7emotions/resolve/17557b77727b6b9099dcce488871ce2e4916a2a9/data/train-00004-of-00005.parquet
+Retrying in 1s [Retry 1/5].
+  RAF-DB [train] 1500 samples
+  RAF-DB [test] WARN: Bad split: test. Available splits: ['train']
+[real_dataset] WESAD (LouisSimon/wesad-parquet)...
+  WESAD 2000 samples
+[real_dataset] Total records: 9500
+[real_dataset] Split: train=7125 val=950 test=1425
+[TCMT] Data ready in 1133.4s
+[TCMT] Emotion class counts (train): [2547, 3610, 656, 312]
+[TCMT] CE class weights: [0.29087474942207336, 0.20522382855415344, 1.1293567419052124, 2.374544858932495]
+  Epoch   1/50  loss=1.0979  val_f1=0.021  val_stress_rmse=0.195
+  Epoch   5/50  loss=0.9353  val_f1=0.227  val_stress_rmse=0.161
+  Epoch  10/50  loss=0.8724  val_f1=0.253  val_stress_rmse=0.077
+  Epoch  15/50  loss=0.8378  val_f1=0.247  val_stress_rmse=0.064
+  Epoch  20/50  loss=0.8122  val_f1=0.262  val_stress_rmse=0.057
+  Epoch  25/50  loss=0.7577  val_f1=0.258  val_stress_rmse=0.059
+  Epoch  30/50  loss=0.7074  val_f1=0.267  val_stress_rmse=0.064
+  Epoch  35/50  loss=0.7168  val_f1=0.257  val_stress_rmse=0.059
+  Epoch  40/50  loss=0.6747  val_f1=0.265  val_stress_rmse=0.059
+  Epoch  45/50  loss=0.6390  val_f1=0.266  val_stress_rmse=0.059
+  Epoch  50/50  loss=0.6478  val_f1=0.263  val_stress_rmse=0.059
+
+[TCMT] Test-set metrics (real held-out data):
+  emotion: {'accuracy': 0.2729824561403509, 'macro_f1': 0.25286321207965873, 'per_class_f1': {'0': 0.7364532019704434, '1': 0.0, '2': 0.16143497757847533, '3': 0.11356466876971609}, 'confusion_matrix': [[299, 0, 90, 123], [1, 0, 383, 351], [0, 0, 54, 71], [0, 0, 17, 36]], 'roc_auc_ovr': 0.73457030670505}
+  stress: {'rmse': 0.06316191376503315, 'mae': 0.04971807077527046, 'r2': 0.8953708960402269}
+  engagement: {'rmse': 0.07153563771970874, 'mae': 0.05747591704130173, 'r2': 0.5896882770663767}
+  attention: {'rmse': 0.07401482587358373, 'mae': 0.06012853607535362, 'r2': 0.5452040598095707}
+  fatigue: {'rmse': 0.06889987885827155, 'mae': 0.05501549318432808, 'r2': 0.6142047459222595}
+[TCMT] Saved weights: D:\MHBAP\ml\models\weights\tcmt_trained.pt
+[TCMT] Saved metrics: D:\MHBAP\ml\models\weights\tcmt_eval_metrics.json
+
+Final test metrics (v4):
+{
+  "emotion": {
+    "accuracy": 0.2729824561403509,
+    "macro_f1": 0.25286321207965873,
+    "per_class_f1": {
+      "0": 0.7364532019704434,
+      "1": 0.0,
+      "2": 0.16143497757847533,
+      "3": 0.11356466876971609
+    },
+    "confusion_matrix": [
+      [
+        299,
+        0,
+        90,
+        123
+      ],
+      [
+        1,
+        0,
+        383,
+        351
+      ],
+      [
+        0,
+        0,
+        54,
+        71
+      ],
+      [
+        0,
+        0,
+        17,
+        36
+      ]
+    ],
+    "roc_auc_ovr": 0.73457030670505
+  },
+  "stress": {
+    "rmse": 0.06316191376503315,
+    "mae": 0.04971807077527046,
+    "r2": 0.8953708960402269
+  },
+  "engagement": {
+    "rmse": 0.07153563771970874,
+    "mae": 0.05747591704130173,
+    "r2": 0.5896882770663767
+  },
+  "attention": {
+    "rmse": 0.07401482587358373,
+    "mae": 0.06012853607535362,
+    "r2": 0.5452040598095707
+  },
+  "fatigue": {
+    "rmse": 0.06889987885827155,
+    "mae": 0.05501549318432808,
+    "r2": 0.6142047459222595
+  }
+}

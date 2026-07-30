@@ -1,0 +1,35 @@
+[real_dataset] Loading real datasets...
+[real_dataset] FER2013 (clip-benchmark/wds_fer2013)...
+  FER2013 [train] 3000 samples
+  FER2013 [test] 3000 samples
+[real_dataset] RAF-DB (deanngkl/raf-db-7emotions)...
+  RAF-DB [train] 1500 samples
+  RAF-DB [test] WARN: Bad split: test. Available splits: ['train']
+[real_dataset] WESAD (LouisSimon/wesad-parquet)...
+  WESAD 2000 samples
+[real_dataset] Total records: 9500
+[real_dataset] Split: train=7125 val=950 test=1425
+[TCMT] Data ready in 121.4s
+  Epoch   1/35  loss=1.2845  val_f1=0.439  val_stress_rmse=0.188
+  Epoch   5/35  loss=0.0688  val_f1=0.990  val_stress_rmse=0.055
+  Epoch  10/35  loss=0.0327  val_f1=0.998  val_stress_rmse=0.042
+  Epoch  15/35  loss=0.0278  val_f1=1.000  val_stress_rmse=0.045
+  Epoch  20/35  loss=0.0175  val_f1=1.000  val_stress_rmse=0.041
+  Epoch  25/35  loss=0.0142  val_f1=0.998  val_stress_rmse=0.039
+  Epoch  30/35  loss=0.0123  val_f1=0.998  val_stress_rmse=0.038
+  Epoch  35/35  loss=0.0120  val_f1=0.998  val_stress_rmse=0.038
+
+[TCMT] Test-set metrics (real held-out data):
+  emotion: {'accuracy': 0.9992982456140351, 'macro_f1': 0.9985552508124629, 'per_class_f1': {'0': 0.9984051036682615, '1': 0.99581589958159, '2': 1.0, '3': 1.0}, 'confusion_matrix': [[313, 0, 0, 0], [1, 119, 0, 0], [0, 0, 197, 0], [0, 0, 0, 795]]}
+  stress: {'rmse': 0.046368181138451155, 'mae': 0.03685375303030014, 'r2': 0.943283913211055}
+  engagement: {'rmse': 0.058421985876458186, 'mae': 0.047761861234903336, 'r2': 0.6054255801702508}
+  attention: {'rmse': 0.050750514504245246, 'mae': 0.04171065613627434, 'r2': 0.17300384928716095}
+  fatigue: {'rmse': 0.07695505495604284, 'mae': 0.06015139818191528, 'r2': 0.5204947163861695}
+Traceback (most recent call last):
+  File "D:\MHBAP\scripts\run_training.py", line 7, in <module>
+    results = train(epochs=35, fer_samples=6000, raf_samples=3000, wesad_samples=2000, verbose=True)
+  File "D:\MHBAP\ml\training\train_tcmt.py", line 163, in train
+    print(f"[TCMT] Saved weights \u2192 {save_path}", flush=True)
+  File "C:\Users\User\AppData\Local\Programs\Python\Python39\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 21: character maps to <undefined>

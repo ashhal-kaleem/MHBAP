@@ -1,8 +1,16 @@
 """
-ablation.py — Real TCMT modality ablation (Phase F).
+ablation.py — Real TCMT modality ablation using the held-out real test split.
 
-Runs leave-one-out ablation using actual TCMT inference on test data.
-Falls back to simulation when weights unavailable (CI without GPU).
+Data source
+-----------
+Loads ``ml/datasets/processed/eval_test_split.npz``, which is generated
+by ``scripts/cache_eval_test_split.py``.
+
+Raises ``RuntimeError`` explicitly when:
+  - The cached test split is not found  (run scripts/cache_eval_test_split.py)
+  - The TCMT checkpoint is not found    (run python -m ml.training.train_tcmt)
+
+There is NO silent fallback to synthetic data or simulation.
 """
 from __future__ import annotations
 
@@ -13,6 +21,12 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from backend.app.evaluation.metrics import EvaluationReport, compute_report
+
+# ── paths ──────────────────────────────────────────────────────────────────────
+_REPO_ROOT = Path(__file__).parent.parent.parent.parent
+
+WEIGHT_PATH = _REPO_ROOT / "ml" / "models" / "weights" / "tcmt_trained.pt"
+TEST_SPLIT_PATH = _REPO_ROOT / "ml" / "datasets" / "processed" / "eval_test_split.npz"
 
 MODALITIES = ["facial", "audio", "physiological", "hci"]
 
@@ -25,28 +39,8 @@ _MOD_MAP = {
     "hci":           ["hci"],
 }
 
-WEIGHT_PATH = Path(__file__).parent.parent.parent.parent / \
-    "ml" / "models" / "weights" / "tcmt_trained.pt"
 
-# Keep legacy simulation helpers so existing tests still pass
-_MODALITY_ACC: Dict[str, float] = {
-    "facial": 0.78, "audio": 0.71, "physiological": 0.65, "hci": 0.60,
-}
-
-
-def _simulate_modality_prediction(modality, true_label, accuracy, rng):
-    import random as _r
-    if rng.random() < accuracy:
-        return true_label
-    return rng.choice([l for l in EMOTION_LABELS if l != true_label])
-
-
-def _fuse(votes, rng):
-    from collections import Counter
-    counts = Counter(votes)
-    mx = max(counts.values())
-    return rng.choice([k for k, v in counts.items() if v == mx])
-
+# ── dataclasses ─────────────────────────────────────────────────────────────────
 
 @dataclass
 class AblationResult:
@@ -58,29 +52,71 @@ class AblationResult:
 @dataclass
 class AblationStudy:
     modality_subset: List[str]
+    n_samples: int                          # populated by run_ablation()
+    seed: int                               # populated by run_ablation()
     results: List[AblationResult] = field(default_factory=list)
 
 
+# ── data / model loading ────────────────────────────────────────────────────────
+
+def _load_real_test_data(n_samples: int) -> dict:
+    """
+    Load the real held-out test split from the cached .npz file.
+
+    Raises
+    ------
+    RuntimeError
+        If the cache file does not exist.  Run ``python scripts/cache_eval_test_split.py``
+        to generate it from the same HuggingFace datasets used during training.
+    """
+    if not TEST_SPLIT_PATH.exists():
+        raise RuntimeError(
+            f"Real evaluation test split not found at:\n  {TEST_SPLIT_PATH}\n\n"
+            "Generate it by running:\n"
+            "    python scripts/cache_eval_test_split.py\n\n"
+            "This script downloads FER2013 + WESAD from HuggingFace (same as training), "
+            "splits with seed=42, and saves the test portion to the path above."
+        )
+    data = dict(np.load(str(TEST_SPLIT_PATH)))
+    n = min(n_samples, len(data["X"]))
+    return {k: v[:n] for k, v in data.items()}
+
+
 def _load_model():
+    """
+    Load the trained TCMT checkpoint.
+
+    Raises
+    ------
+    RuntimeError
+        If the checkpoint file does not exist.
+    """
     try:
         import torch
         from ml.fusion.tcmt import TCMT
-        if not WEIGHT_PATH.exists():
-            return None
-        ckpt  = torch.load(str(WEIGHT_PATH), map_location="cpu")
-        model = TCMT()
-        model.load_state_dict(ckpt["state_dict"])
-        model.eval()
-        return model
-    except Exception:
-        return None
+    except ImportError as exc:
+        raise RuntimeError(f"PyTorch / TCMT not importable: {exc}") from exc
+
+    if not WEIGHT_PATH.exists():
+        raise RuntimeError(
+            f"TCMT checkpoint not found at:\n  {WEIGHT_PATH}\n\n"
+            "Train the model first:\n"
+            "    python -m ml.training.train_tcmt"
+        )
+
+    ckpt = torch.load(str(WEIGHT_PATH), map_location="cpu")
+    state_dict = (
+        ckpt["state_dict"]
+        if isinstance(ckpt, dict) and "state_dict" in ckpt
+        else ckpt
+    )
+    model = TCMT()
+    model.load_state_dict(state_dict)
+    model.eval()
+    return model
 
 
-def _get_test_data(n_samples: int, seed: int):
-    from ml.training.dataset import make_dataset
-    _, _, te = make_dataset(n_samples=max(n_samples * 7, 3000), seed=seed)
-    return {k: v[:n_samples] for k, v in te.items()}
-
+# ── inference with modality masking ────────────────────────────────────────────
 
 def _infer(model, X: np.ndarray, mask_out: List[str]) -> list:
     import torch
@@ -92,10 +128,10 @@ def _infer(model, X: np.ndarray, mask_out: List[str]) -> list:
     with torch.no_grad():
         out = model(torch.tensor(Xm, dtype=torch.float32))
     logits = np.array(out["emotion_logits"])
-    if logits.shape[1] > 4:
-        logits = logits[:, :4]
     return logits.argmax(axis=1).tolist()
 
+
+# ── public API ──────────────────────────────────────────────────────────────────
 
 def run_ablation(
     n_samples: int = 500,
@@ -103,43 +139,37 @@ def run_ablation(
     modality_subset: Optional[List[str]] = None,
 ) -> AblationStudy:
     """
-    Enumerate all non-empty subsets of modality_subset, run TCMT on each,
-    record F1. Falls back to legacy simulation when no weights.
+    Enumerate all non-empty subsets of ``modality_subset``, run TCMT on each
+    with the remaining modalities masked to zero, and record the resulting F1.
+
+    Parameters
+    ----------
+    n_samples:
+        Maximum number of test samples to use (capped by the cached split size).
+    seed:
+        Informational only — the test split is already fixed by training seed=42.
+    modality_subset:
+        Which modalities to enumerate.  Defaults to all four.
+
+    Returns
+    -------
+    AblationStudy with ``n_samples`` and ``seed`` populated and all subset results.
+
+    Raises
+    ------
+    RuntimeError
+        If the test split cache or checkpoint is missing.
     """
     subset = modality_subset or MODALITIES
-    study  = AblationStudy(modality_subset=subset)
-    model  = _load_model()
+    data = _load_real_test_data(n_samples)
+    model = _load_model()
 
-    if model is None:
-        # Legacy simulation fallback
-        import random
-        rng = random.Random(seed)
-        y_true = [rng.choice(list(EMOTION_LABELS.keys())) for _ in range(n_samples)]
-        for r in range(1, len(subset) + 1):
-            for combo in itertools.combinations(subset, r):
-                active = list(combo)
-                dropped = [m for m in subset if m not in active]
-                y_pred = []
-                for yt in y_true:
-                    votes = [_simulate_modality_prediction(
-                        m, yt, _MODALITY_ACC[m], rng) for m in active]
-                    y_pred.append(_fuse(votes, rng))
-                report = compute_report(
-                    name="+".join(active),
-                    y_true=y_true, y_pred=y_pred,
-                    label_names=EMOTION_LABELS,
-                )
-                study.results.append(AblationResult(
-                    active_modalities=active,
-                    dropped_modalities=dropped,
-                    report=report,
-                ))
-        return study
-
-    data   = _get_test_data(n_samples=n_samples, seed=seed)
-    X      = data["X"]
+    X = data["X"]
     y_true = (data["emotion"] % 4).tolist()
+    actual_n = len(X)
+
     all_feat_mods = [m for mlist in _MOD_MAP.values() for m in mlist]
+    study = AblationStudy(modality_subset=subset, n_samples=actual_n, seed=seed)
 
     for r in range(1, len(subset) + 1):
         for combo in itertools.combinations(subset, r):
@@ -150,7 +180,8 @@ def run_ablation(
             y_pred  = _infer(model, X, mask)
             report  = compute_report(
                 name="+".join(active),
-                y_true=y_true, y_pred=y_pred,
+                y_true=y_true,
+                y_pred=y_pred,
                 label_names=EMOTION_LABELS,
             )
             study.results.append(AblationResult(

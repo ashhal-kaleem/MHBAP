@@ -155,15 +155,16 @@ class TestWeightPersistence:
             pytest.skip("Run ml.training.train_tcmt first")
         import torch
         from ml.fusion.tcmt import TCMT, EMOTION_CLASSES
-        ckpt  = torch.load(str(WEIGHT_PATH), map_location="cpu")
-        # Verify head size matches current EMOTION_CLASSES before loading
-        emo_w = ckpt["state_dict"]["head_emotion.weight"]
+        ckpt = torch.load(str(WEIGHT_PATH), map_location="cpu")
+        sd = ckpt["state_dict"] if "state_dict" in ckpt else ckpt
+        emo_w = sd.get("head_emotion.0.weight", sd.get("head_emotion.weight"))
+        assert emo_w is not None
         if emo_w.shape[0] != EMOTION_CLASSES:
             pytest.skip(
                 f"Stale checkpoint: head has {emo_w.shape[0]} classes, "
                 f"model expects {EMOTION_CLASSES}. Retrain to fix."
             )
         model = TCMT()
-        model.load_state_dict(ckpt["state_dict"])
+        model.load_state_dict(sd)
         model.eval()
         assert model is not None

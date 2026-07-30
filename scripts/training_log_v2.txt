@@ -1,0 +1,97 @@
+============================================================
+TCMT Retraining -- Post-Audit Clean Run
+Fixes applied:
+  - EMOTION_CLASSES=4 (was 8)
+  - No circular bias injection in feature construction
+  - Label provenance annotated in output JSON
+============================================================
+[real_dataset] Loading real datasets...
+[real_dataset] FER2013 (clip-benchmark/wds_fer2013)...
+  FER2013 [train] 3000 samples
+  FER2013 [test] 3000 samples
+[real_dataset] RAF-DB (deanngkl/raf-db-7emotions)...
+  RAF-DB [train] 1500 samples
+  RAF-DB [test] WARN: Bad split: test. Available splits: ['train']
+[real_dataset] WESAD (LouisSimon/wesad-parquet)...
+  WESAD 2000 samples
+[real_dataset] Total records: 9500
+[real_dataset] Split: train=7125 val=950 test=1425
+[TCMT] Data ready in 135.4s
+  Epoch   1/35  loss=1.2117  val_f1=0.419  val_stress_rmse=0.195
+  Epoch   5/35  loss=0.7517  val_f1=0.449  val_stress_rmse=0.087
+  Epoch  10/35  loss=0.7206  val_f1=0.449  val_stress_rmse=0.067
+  Epoch  15/35  loss=0.7116  val_f1=0.449  val_stress_rmse=0.045
+  Epoch  20/35  loss=0.7059  val_f1=0.449  val_stress_rmse=0.042
+  Epoch  25/35  loss=0.6997  val_f1=0.449  val_stress_rmse=0.040
+  Epoch  30/35  loss=0.6952  val_f1=0.449  val_stress_rmse=0.038
+  Epoch  35/35  loss=0.6955  val_f1=0.449  val_stress_rmse=0.038
+
+[TCMT] Test-set metrics (real held-out data):
+  emotion: {'accuracy': 0.7670175438596492, 'macro_f1': 0.450653378194671, 'per_class_f1': {'0': 0.9755301794453507, '1': 0.0, '2': 0.0, '3': 0.8270833333333333}, 'confusion_matrix': [[299, 0, 0, 14], [0, 0, 0, 120], [0, 0, 0, 197], [1, 0, 0, 794]], 'roc_auc_ovr': 0.7619055631229741}
+  stress: {'rmse': 0.08613252185590844, 'mae': 0.0715416744351387, 'r2': 0.8015320288254526}
+  engagement: {'rmse': 0.10469880132026577, 'mae': 0.08481132984161377, 'r2': 0.12107373305369507}
+  attention: {'rmse': 0.10424367819572669, 'mae': 0.08362613618373871, 'r2': 0.09785030692937302}
+  fatigue: {'rmse': 0.10688179538271572, 'mae': 0.08626236021518707, 'r2': 0.07161639793796737}
+[TCMT] Saved weights: D:\MHBAP\ml\models\weights\tcmt_trained.pt
+[TCMT] Saved metrics: D:\MHBAP\ml\models\weights\tcmt_eval_metrics.json
+
+Final test metrics:
+{
+  "emotion": {
+    "accuracy": 0.7670175438596492,
+    "macro_f1": 0.450653378194671,
+    "per_class_f1": {
+      "0": 0.9755301794453507,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.8270833333333333
+    },
+    "confusion_matrix": [
+      [
+        299,
+        0,
+        0,
+        14
+      ],
+      [
+        0,
+        0,
+        0,
+        120
+      ],
+      [
+        0,
+        0,
+        0,
+        197
+      ],
+      [
+        1,
+        0,
+        0,
+        794
+      ]
+    ],
+    "roc_auc_ovr": 0.7619055631229741
+  },
+  "stress": {
+    "rmse": 0.08613252185590844,
+    "mae": 0.0715416744351387,
+    "r2": 0.8015320288254526
+  },
+  "engagement": {
+    "rmse": 0.10469880132026577,
+    "mae": 0.08481132984161377,
+    "r2": 0.12107373305369507
+  },
+  "attention": {
+    "rmse": 0.10424367819572669,
+    "mae": 0.08362613618373871,
+    "r2": 0.09785030692937302
+  },
+  "fatigue": {
+    "rmse": 0.10688179538271572,
+    "mae": 0.08626236021518707,
+    "r2": 0.07161639793796737
+  }
+}

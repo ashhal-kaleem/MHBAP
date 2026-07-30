@@ -104,13 +104,35 @@ def train(
     print(f"[TCMT] Data ready in {time.time()-t0:.1f}s", flush=True)
 
     train_ds = _to_tensors(train_split)
-    loader   = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+
+    # WeightedRandomSampler: oversample minority emotion classes so each
+    # class appears equally often per epoch. Computed from training labels only.
+    emo_labels  = train_split["emotion"]                          # (N,) int64
+    class_count = np.bincount(emo_labels, minlength=EMOTION_CLASSES).astype(float)
+    class_count = np.where(class_count == 0, 1.0, class_count)
+    sample_wts  = (1.0 / class_count)[emo_labels]                # weight per sample
+    sampler = torch.utils.data.WeightedRandomSampler(
+        weights=torch.tensor(sample_wts, dtype=torch.float64),
+        num_samples=len(train_ds),
+        replacement=True,
+    )
+    loader = DataLoader(train_ds, batch_size=batch_size, sampler=sampler)
 
     model  = TCMT()
     opt    = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     sched  = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
-    ce     = nn.CrossEntropyLoss()
-    mse    = nn.MSELoss()
+
+    # Class-weighted CE: inverse-frequency weights so minority classes are not
+    # drowned out by the majority class. Computed from training labels only.
+    emo_counts = np.bincount(train_split["emotion"], minlength=EMOTION_CLASSES).astype(float)
+    emo_counts = np.where(emo_counts == 0, 1.0, emo_counts)   # avoid divide-by-zero
+    emo_weights = torch.tensor(1.0 / emo_counts, dtype=torch.float32)
+    emo_weights = emo_weights / emo_weights.sum() * EMOTION_CLASSES  # scale so mean≈1
+    ce  = nn.CrossEntropyLoss(weight=emo_weights)
+    print(f"[TCMT] Emotion class counts (train): {emo_counts.astype(int).tolist()}", flush=True)
+    print(f"[TCMT] CE class weights: {emo_weights.tolist()}", flush=True)
+
+    mse = nn.MSELoss()
 
     best_f1, best_state = -1.0, None
 

@@ -1,6 +1,15 @@
 """
 real_dataset.py -- Real public dataset loader for MHBAP TCMT training.
 
+FIX APPLIED (post-retrain, class-collapse investigation):
+  - load_fer2013()/load_rafdb() previously took the first N items from the
+    HF streaming iterator with NO shuffle. Both webdataset sources are shard-
+    ordered by class, so this produced a heavily skewed sample (e.g. 54% of
+    FER2013+RAF-DB samples landing in class 3 "angry/disgust"), which is why
+    the emotion head collapsed to predicting only classes 0 and 3 (F1=0.0 on
+    classes 1 and 2). Fixed by adding ds.shuffle(seed=..., buffer_size=4000)
+    before truncating to per_split -- see verification in AUDIT_REPORT.md.
+
 FIX APPLIED (audit 2025):
   - REMOVED _emotion_biases(): no longer injects class-specific values into
     the feature vector. Emotion label is now independent of all other dims.
@@ -35,10 +44,22 @@ from ml.fusion.feature_vector import FEATURE_DIM, MODALITY_KEYS
 from ml.fusion.feature_utils import modality_slice
 
 # ---- class mappings -------------------------------------------------------
-# FER2013: 0=Angry,1=Disgust,2=Fear,3=Happy,4=Sad,5=Surprise,6=Neutral
-FER_TO_MHBAP = {0: 3, 1: 3, 2: 2, 3: 1, 4: 2, 5: 1, 6: 0}
+# MHBAP 4-class schema: 0=neutral, 1=happy/positive, 2=sad/fearful, 3=angry/negative
+#
+# FER2013 7-class: 0=Angry,1=Disgust,2=Fear,3=Happy,4=Sad,5=Surprise,6=Neutral
+# Mapping rationale:
+#   Angry(0)   → 3 (angry/negative)
+#   Disgust(1) → 2 (was 3 -- caused double-counting of class 3; disgust is
+#                   negative but not aggressive, closer to sad/fearful)
+#   Fear(2)    → 2 (sad/fearful)
+#   Happy(3)   → 1 (happy/positive)
+#   Sad(4)     → 2 (sad/fearful)
+#   Surprise(5)→ 1 (positive/aroused, treated as happy-adjacent)
+#   Neutral(6) → 0 (neutral)
+FER_TO_MHBAP = {0: 3, 1: 2, 2: 2, 3: 1, 4: 2, 5: 1, 6: 0}
 # RAF-DB 1-indexed: 1=Surprise,2=Fear,3=Disgust,4=Happy,5=Sad,6=Angry,7=Neutral
-RAF_TO_MHBAP = {1: 1, 2: 2, 3: 3, 4: 1, 5: 2, 6: 3, 7: 0}
+# Mapping rationale: same schema; Disgust(3)→2 for consistency with FER fix
+RAF_TO_MHBAP = {1: 1, 2: 2, 3: 2, 4: 1, 5: 2, 6: 3, 7: 0}
 # WESAD: 0=undef,1=baseline,2=stress,3=amusement
 WESAD_STRESS_MAP = {0: 0.3, 1: 0.1, 2: 0.9, 3: 0.15}
 
@@ -160,6 +181,7 @@ def load_fer2013(max_samples: int = 6000, seed: int = 42) -> List[dict]:
         try:
             ds = load_dataset("clip-benchmark/wds_fer2013", split=split,
                               streaming=True, trust_remote_code=False)
+            ds = ds.shuffle(seed=seed, buffer_size=4000)
             count = 0
             for item in ds:
                 if count >= per_split:
@@ -194,6 +216,7 @@ def load_rafdb(max_samples: int = 3000, seed: int = 42) -> List[dict]:
         try:
             ds = load_dataset("deanngkl/raf-db-7emotions", split=split,
                               streaming=True, trust_remote_code=False)
+            ds = ds.shuffle(seed=seed + 1, buffer_size=4000)
             count = 0
             for item in ds:
                 if count >= per_split:

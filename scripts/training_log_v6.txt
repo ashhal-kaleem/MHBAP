@@ -1,0 +1,59 @@
+============================================================
+TCMT Retraining v6
+Changes: focal loss, loss weighting, capacity++, warmup, label smoothing
+============================================================
+[real_dataset] Loading real datasets...
+[real_dataset] FER2013 (clip-benchmark/wds_fer2013)...
+  FER2013 [train] 4500 samples
+  FER2013 [test] 4500 samples
+[real_dataset] RAF-DB (deanngkl/raf-db-7emotions)...
+  RAF-DB [train] 1500 samples
+  RAF-DB [test] WARN: Bad split: test. Available splits: ['train']
+[real_dataset] WESAD (LouisSimon/wesad-parquet)...
+  WESAD 2000 samples
+[real_dataset] Total records: 12500
+[real_dataset] Split: train=9375 val=1250 test=1875
+[v6] Data ready in 1286.1s
+[v6] Train class counts: [3174, 4637, 1176, 388]
+  Ep   1/75  loss=2.1219  val_f1=0.022  val_acc=0.046  stress_rmse=0.180  lr=8.00e-05
+  Ep   5/75  loss=1.7354  val_f1=0.178  val_acc=0.198  stress_rmse=0.154  lr=2.00e-04
+  Ep  10/75  loss=1.6671  val_f1=0.215  val_acc=0.216  stress_rmse=0.127  lr=1.97e-04
+  Ep  15/75  loss=1.5470  val_f1=0.226  val_acc=0.221  stress_rmse=0.090  lr=1.90e-04
+  Ep  20/75  loss=1.3242  val_f1=0.243  val_acc=0.254  stress_rmse=0.090  lr=1.78e-04
+  Ep  25/75  loss=1.0381  val_f1=0.263  val_acc=0.280  stress_rmse=0.093  lr=1.62e-04
+  Ep  30/75  loss=0.8631  val_f1=0.246  val_acc=0.270  stress_rmse=0.087  lr=1.43e-04
+  Ep  35/75  loss=0.7373  val_f1=0.260  val_acc=0.284  stress_rmse=0.086  lr=1.22e-04
+  Ep  40/75  loss=0.6401  val_f1=0.271  val_acc=0.301  stress_rmse=0.087  lr=1.00e-04
+  Ep  45/75  loss=0.6021  val_f1=0.270  val_acc=0.302  stress_rmse=0.084  lr=7.77e-05
+  Ep  50/75  loss=0.5610  val_f1=0.277  val_acc=0.314  stress_rmse=0.082  lr=5.66e-05
+  Ep  55/75  loss=0.5406  val_f1=0.295  val_acc=0.334  stress_rmse=0.081  lr=3.77e-05
+  Ep  60/75  loss=0.5269  val_f1=0.300  val_acc=0.337  stress_rmse=0.081  lr=2.18e-05
+  Ep  65/75  loss=0.4980  val_f1=0.298  val_acc=0.337  stress_rmse=0.081  lr=9.90e-06
+  Ep  70/75  loss=0.5069  val_f1=0.298  val_acc=0.340  stress_rmse=0.080  lr=2.51e-06
+  Ep  75/75  loss=0.4890  val_f1=0.299  val_acc=0.342  stress_rmse=0.080  lr=0.00e+00
+
+[v6] Best val macro_F1: 0.2998
+
+[v6] === TEST SET METRICS ===
+  emotion: {'accuracy': 0.34986666666666666, 'macro_f1': 0.317810848338927, 'per_class_f1': {'0': 0.6438482886216467, '1': 0.23425022182786157, '2': 0.24251726784343822, '3': 0.1506276150627615}, 'confusion_matrix': [[348, 32, 239, 25], [65, 132, 644, 92], [17, 19, 158, 15], [7, 11, 53, 18]], 'roc_auc_ovr': 0.7058854692849629}
+  stress: {'rmse': 0.08472029269258614, 'mae': 0.06285828351974487, 'r2': 0.7838450730280113}
+  engagement: {'rmse': 0.07563696009073327, 'mae': 0.06102147325873375, 'r2': 0.5139626609068693}
+  attention: {'rmse': 0.07811147155454767, 'mae': 0.06225033849477768, 'r2': 0.4754143871574681}
+  fatigue: {'rmse': 0.07601937286727399, 'mae': 0.060146622359752655, 'r2': 0.5209460975467974}
+
+[v6] v6 test macro_F1: 0.3178  (v5 baseline: 0.2780)
+[v6] IMPROVEMENT confirmed. Saving.
+[v6] Weights saved: ml\models\weights\tcmt_trained.pt
+[v6] Metrics saved: ml\models\weights\tcmt_eval_metrics.json
+
+[v6] Final per-class F1:
+  neutral: 0.6438
+  happy: 0.2343
+  sad: 0.2425
+  angry: 0.1506
+
+[v6] confusion_matrix:
+  [348, 32, 239, 25]
+  [65, 132, 644, 92]
+  [17, 19, 158, 15]
+  [7, 11, 53, 18]
