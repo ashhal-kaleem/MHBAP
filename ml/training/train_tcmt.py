@@ -1,16 +1,19 @@
 """
-train_tcmt.py — Training loop for TCMT.
+train_tcmt.py — Training loop for TCMT using real public datasets.
+
+Datasets used:
+  - FER2013 (clip-benchmark/wds_fer2013)  → emotion (face images)
+  - RAF-DB  (deanngkl/raf-db-7emotions)   → emotion (face images)
+  - WESAD   (LouisSimon/wesad-parquet)    → stress  (physiological)
 
 Usage (from repo root):
-    python -m ml.training.train_tcmt [--epochs N] [--samples N] [--out PATH]
+    python -m ml.training.train_tcmt [--epochs N] [--out PATH]
 
 Saves checkpoint to ml/models/weights/tcmt_trained.pt
-Prints real metrics every epoch.
+Saves metrics  to ml/models/weights/tcmt_eval_metrics.json
 """
 from __future__ import annotations
-import argparse
-import json
-import time
+import argparse, json, time
 from pathlib import Path
 from typing import Dict
 
@@ -20,23 +23,39 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from ml.fusion.tcmt import TCMT, EMOTION_CLASSES
-from ml.training.dataset import make_dataset
-from ml.evaluation.metrics import (
-    emotion_metrics, regression_metrics, compute_all_metrics
-)
+from ml.training.real_dataset import make_real_dataset
+from ml.evaluation.metrics import compute_all_metrics
 
-WEIGHT_PATH = Path(__file__).parent.parent / "models" / "weights" / "tcmt_trained.pt"
+WEIGHT_PATH  = Path(__file__).parent.parent / "models" / "weights" / "tcmt_trained.pt"
 METRICS_PATH = Path(__file__).parent.parent / "models" / "weights" / "tcmt_eval_metrics.json"
 
 
 def _to_tensors(split: dict) -> TensorDataset:
-    X = torch.tensor(split["X"], dtype=torch.float32)
-    emo = torch.tensor(split["emotion"], dtype=torch.long)
-    stress = torch.tensor(split["stress"], dtype=torch.float32).unsqueeze(-1)
-    eng    = torch.tensor(split["engagement"], dtype=torch.float32).unsqueeze(-1)
-    att    = torch.tensor(split["attention"], dtype=torch.float32).unsqueeze(-1)
-    fat    = torch.tensor(split["fatigue"], dtype=torch.float32).unsqueeze(-1)
-    return TensorDataset(X, emo, stress, eng, att, fat)
+    X   = torch.tensor(split["X"],          dtype=torch.float32)
+    emo = torch.tensor(split["emotion"],     dtype=torch.long)
+    st  = torch.tensor(split["stress"],      dtype=torch.float32).unsqueeze(-1)
+    eng = torch.tensor(split["engagement"],  dtype=torch.float32).unsqueeze(-1)
+    att = torch.tensor(split["attention"],   dtype=torch.float32).unsqueeze(-1)
+    fat = torch.tensor(split["fatigue"],     dtype=torch.float32).unsqueeze(-1)
+    return TensorDataset(X, emo, st, eng, att, fat)
+
+
+def _forward_train(model: TCMT, X: torch.Tensor) -> dict:
+    """Forward pass keeping tensors for backprop."""
+    if X.dim() == 2:
+        X = X.unsqueeze(1)
+    B, T, F = X.shape
+    tokens = torch.cat([model.mod_proj(X[:, t, :]) for t in range(T)], dim=1)
+    cls    = model.cls_token.expand(B, -1, -1)
+    enc    = model.encoder(torch.cat([cls, tokens], dim=1))
+    h      = enc[:, 0, :]
+    return {
+        "emo_logits": model.head_emotion(h),
+        "stress":     torch.sigmoid(model.head_stress(h)),
+        "engagement": torch.sigmoid(model.head_engagement(h)),
+        "attention":  torch.sigmoid(model.head_attention(h)),
+        "fatigue":    torch.sigmoid(model.head_fatigue(h)),
+    }
 
 
 def _evaluate(model: TCMT, split: dict) -> Dict[str, Dict[str, float]]:
@@ -44,24 +63,16 @@ def _evaluate(model: TCMT, split: dict) -> Dict[str, Dict[str, float]]:
     X = torch.tensor(split["X"], dtype=torch.float32)
     with torch.no_grad():
         out = model(X)
-    # out values are numpy arrays (model returns numpy in inference mode)
-    # Rebuild as torch for consistency
     em_pred = np.array(out["emotion_logits"])
     st_pred = np.array(out["stress"]).squeeze()
     en_pred = np.array(out["engagement"]).squeeze()
     at_pred = np.array(out["attention"]).squeeze()
     fa_pred = np.array(out["fatigue"]).squeeze()
 
-    targets = {
-        "emotion":    split["emotion"],
-        "stress":     split["stress"],
-        "engagement": split["engagement"],
-        "attention":  split["attention"],
-        "fatigue":    split["fatigue"],
-    }
-    preds = {
+    targets = {k: split[k] for k in ("emotion","stress","engagement","attention","fatigue")}
+    preds   = {
         "emotion":    em_pred,
-        "stress":     st_pred / 10.0,     # model scales stress to 0-10, labels 0-1
+        "stress":     st_pred / 10.0,   # model scales 0-10, labels 0-1
         "engagement": en_pred,
         "attention":  at_pred,
         "fatigue":    fa_pred,
@@ -70,48 +81,50 @@ def _evaluate(model: TCMT, split: dict) -> Dict[str, Dict[str, float]]:
 
 
 def train(
-    n_samples: int = 3000,
-    epochs: int = 30,
+    epochs: int = 35,
     batch_size: int = 64,
     lr: float = 3e-4,
     seed: int = 42,
     verbose: bool = True,
     out: Path = WEIGHT_PATH,
+    fer_samples: int = 6000,
+    raf_samples: int = 3000,
+    wesad_samples: int = 2000,
 ) -> Dict:
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    if verbose:
-        print(f"[TCMT] Generating {n_samples} samples …")
-    train_split, val_split, test_split = make_dataset(n_samples=n_samples, seed=seed)
+    t0 = time.time()
+    train_split, val_split, test_split = make_real_dataset(
+        fer_samples=fer_samples,
+        raf_samples=raf_samples,
+        wesad_samples=wesad_samples,
+        seed=seed,
+    )
+    print(f"[TCMT] Data ready in {time.time()-t0:.1f}s", flush=True)
 
     train_ds = _to_tensors(train_split)
-    val_ds   = _to_tensors(val_split)
     loader   = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
 
-    model = TCMT()
-    opt   = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
+    model  = TCMT()
+    opt    = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    sched  = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
+    ce     = nn.CrossEntropyLoss()
+    mse    = nn.MSELoss()
 
-    ce_loss  = nn.CrossEntropyLoss()
-    mse_loss = nn.MSELoss()
-
-    best_val_f1 = -1.0
-    best_state  = None
+    best_f1, best_state = -1.0, None
 
     for epoch in range(1, epochs + 1):
         model.train()
         ep_loss = 0.0
-        for X, emo, stress, eng, att, fat in loader:
+        for X, emo, st, eng, att, fat in loader:
             opt.zero_grad()
-            out = _forward_train(model, X)
-            loss = (
-                ce_loss(out["emotion_logits_t"], emo)
-                + mse_loss(out["stress_t"], stress)
-                + mse_loss(out["engagement_t"], eng)
-                + mse_loss(out["attention_t"], att)
-                + mse_loss(out["fatigue_t"], fat)
-            )
+            o = _forward_train(model, X)
+            loss = (ce(o["emo_logits"], emo)
+                    + mse(o["stress"],     st)
+                    + mse(o["engagement"], eng)
+                    + mse(o["attention"],  att)
+                    + mse(o["fatigue"],    fat))
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
@@ -119,66 +132,47 @@ def train(
         sched.step()
 
         if verbose and (epoch % 5 == 0 or epoch == 1):
-            val_m = _evaluate(model, val_split)
-            f1 = val_m["emotion"]["macro_f1"]
-            st_rmse = val_m["stress"]["rmse"]
-            print(f"  Epoch {epoch:3d}/{epochs}  loss={ep_loss/len(train_ds):.4f}"
-                  f"  val_emotion_f1={f1:.3f}  val_stress_rmse={st_rmse:.3f}")
-            if f1 > best_val_f1:
-                best_val_f1 = f1
-                best_state  = {k: v.clone() for k, v in model.state_dict().items()}
+            vm = _evaluate(model, val_split)
+            f1 = vm["emotion"]["macro_f1"]
+            print(f"  Epoch {epoch:3d}/{epochs}  "
+                  f"loss={ep_loss/len(train_ds):.4f}  "
+                  f"val_f1={f1:.3f}  "
+                  f"val_stress_rmse={vm['stress']['rmse']:.3f}", flush=True)
+            if f1 > best_f1:
+                best_f1 = f1
+                best_state = {k: v.clone() for k, v in model.state_dict().items()}
 
     if best_state is not None:
         model.load_state_dict(best_state)
 
-    # Final test evaluation
     test_metrics = _evaluate(model, test_split)
     if verbose:
-        print("\n[TCMT] Test-set metrics:")
+        print("\n[TCMT] Test-set metrics (real held-out data):", flush=True)
         for head, m in test_metrics.items():
-            print(f"  {head}: {m}")
+            print(f"  {head}: {m}", flush=True)
 
-    # Save — use explicit Path to avoid any local variable shadowing
-    save_path = Path(out) if not isinstance(out, Path) else out
+    save_path = Path(out)
     save_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"state_dict": model.state_dict(), "test_metrics": test_metrics}, save_path)
-    metrics_path = Path(METRICS_PATH)
-    metrics_path.parent.mkdir(parents=True, exist_ok=True)
-    metrics_path.write_text(json.dumps(test_metrics, indent=2))
-    if verbose:
-        print(f"[TCMT] Saved weights → {save_path}")
-        print(f"[TCMT] Saved metrics → {metrics_path}")
-
+    torch.save({"state_dict": model.state_dict(), "test_metrics": test_metrics,
+                "datasets": ["FER2013","RAF-DB","WESAD"],
+                "n_train": len(train_split["X"]),
+                "n_val":   len(val_split["X"]),
+                "n_test":  len(test_split["X"])}, save_path)
+    METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    METRICS_PATH.write_text(json.dumps(test_metrics, indent=2))
+    print(f"[TCMT] Saved weights -> {save_path}", flush=True)
+    print(f"[TCMT] Saved metrics -> {METRICS_PATH}", flush=True)
     return test_metrics
-
-
-def _forward_train(model: TCMT, X: torch.Tensor) -> dict:
-    """Run model forward keeping tensors (not numpy) for backprop."""
-    import torch as _t
-    if X.dim() == 2:
-        X = X.unsqueeze(1)
-    B, T, F = X.shape
-    tokens_list = []
-    for t in range(T):
-        tokens_list.append(model.mod_proj(X[:, t, :]))
-    tokens = _t.cat(tokens_list, dim=1)
-    cls = model.cls_token.expand(B, -1, -1)
-    seq = _t.cat([cls, tokens], dim=1)
-    enc = model.encoder(seq)
-    cls_out = enc[:, 0, :]
-    return {
-        "emotion_logits_t": model.head_emotion(cls_out),
-        "stress_t":         _t.sigmoid(model.head_stress(cls_out)),
-        "engagement_t":     _t.sigmoid(model.head_engagement(cls_out)),
-        "attention_t":      _t.sigmoid(model.head_attention(cls_out)),
-        "fatigue_t":        _t.sigmoid(model.head_fatigue(cls_out)),
-    }
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=30)
-    parser.add_argument("--samples", type=int, default=3000)
-    parser.add_argument("--out", type=Path, default=WEIGHT_PATH)
+    parser.add_argument("--epochs",       type=int,  default=35)
+    parser.add_argument("--fer_samples",  type=int,  default=6000)
+    parser.add_argument("--raf_samples",  type=int,  default=3000)
+    parser.add_argument("--wesad_samples",type=int,  default=2000)
+    parser.add_argument("--out",          type=Path, default=WEIGHT_PATH)
     args = parser.parse_args()
-    train(n_samples=args.samples, epochs=args.epochs, out=args.out)
+    train(epochs=args.epochs, fer_samples=args.fer_samples,
+          raf_samples=args.raf_samples, wesad_samples=args.wesad_samples,
+          out=args.out)

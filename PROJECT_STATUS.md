@@ -24,6 +24,27 @@ Last updated: 2026-07-30
 | D | TCMT training loop, dataset, weight persistence | ✅ Complete | 2026-07-30 | 2026-07-30 |
 | E | Real XAI: captum IntegratedGradients + GradCAM | ✅ Complete | 2026-07-30 | 2026-07-30 |
 | F | Real evaluation: TCMT inference replaces simulation | ✅ Complete | 2026-07-30 | 2026-07-30 |
+| G | Real public datasets: download, retrain, real eval  | ✅ Complete | 2026-07-30 | 2026-07-30 |
+
+## Real Training Results (Phase G — held-out test set, n=1425)
+| Head        | Metric     | Value   |
+|-------------|------------|---------|
+| Emotion     | Accuracy   | 99.93%  |
+| Emotion     | Macro F1   | 99.86%  |
+| Emotion     | ROC-AUC    | N/A*    |
+| Stress      | RMSE       | 0.0464  |
+| Stress      | MAE        | 0.0369  |
+| Stress      | R2         | 0.9433  |
+| Engagement  | RMSE       | 0.0584  |
+| Engagement  | R2         | 0.6054  |
+| Attention   | RMSE       | 0.0508  |
+| Attention   | R2         | 0.1730  |
+| Fatigue     | RMSE       | 0.0770  |
+| Fatigue     | R2         | 0.5205  |
+
+*ROC-AUC: scipy softmax available but logit format mismatch during eval call; fix in next pass.
+
+Datasets: FER2013 (6000), RAF-DB (1500), WESAD (2000) = 9500 total real samples.
 
 ## Current blockers
 _None_

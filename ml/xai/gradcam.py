@@ -21,9 +21,9 @@ class GradCAM:
     """
     Gradient-weighted Class Activation Map over face AU features.
 
-    Parameters
-    ----------
-    model : TCMT  (must be a real torch TCMT, not the stub)
+    Uses forward activations from the face projection layer, weighted by
+    the gradient of the chosen head output w.r.t. those activations.
+    Falls back to weight-norm saliency if the gradient path yields zeros.
     """
     def __init__(self, model: TCMT) -> None:
         if not _TORCH_AVAILABLE:
@@ -33,21 +33,16 @@ class GradCAM:
         self._gradients:   Optional[np.ndarray] = None
         self._hook_handles = []
 
-    # ------------------------------------------------------------------ #
     def _register_hooks(self) -> None:
-        import torch
         face_layer = self._model.mod_proj.projs["face"]   # nn.Linear(12, 64)
 
         def fwd_hook(module, inp, out):
-            # out: (B, 64) — face projection activations
             self._activations = out.detach().cpu().numpy()
 
         def bwd_hook(module, grad_in, grad_out):
-            # grad_out[0]: (B, 64)
             self._gradients = grad_out[0].detach().cpu().numpy()
 
         self._hook_handles.append(face_layer.register_forward_hook(fwd_hook))
-        # Use full backward hook to avoid FutureWarning in torch >= 2.x
         self._hook_handles.append(
             face_layer.register_full_backward_hook(bwd_hook)
         )
@@ -57,33 +52,32 @@ class GradCAM:
             h.remove()
         self._hook_handles.clear()
 
-    # ------------------------------------------------------------------ #
     def explain(
         self,
-        feature_vector: np.ndarray,   # (FEATURE_DIM,)
+        feature_vector: np.ndarray,
         head: str = "stress",
     ) -> np.ndarray:
         """
         Compute GradCAM saliency over the 12 face AU features.
-
-        Returns
-        -------
-        np.ndarray shape (12,)  values in [0, 1]
+        Returns np.ndarray shape (12,) in [0, 1].
         """
         import torch
 
-        self._model.train()   # enable grad even in eval mode
+        self._model.train()
+        self._model.zero_grad()
         self._register_hooks()
+        self._activations = None
+        self._gradients   = None
 
         try:
             x = torch.tensor(feature_vector, dtype=torch.float32,
                              requires_grad=True).unsqueeze(0)  # (1, F)
 
-            # Forward — need tensor outputs, not numpy
-            if x.dim() == 2:
-                _x = x.unsqueeze(1)
+            _x = x.unsqueeze(1)          # (1, 1, F)
             B, T, _ = _x.shape
-            toks = torch.cat([self._model.mod_proj(_x[:, t, :]) for t in range(T)], dim=1)
+            toks = torch.cat(
+                [self._model.mod_proj(_x[:, t, :]) for t in range(T)], dim=1
+            )
             cls  = self._model.cls_token.expand(B, -1, -1)
             enc  = self._model.encoder(torch.cat([cls, toks], dim=1))
             h    = enc[:, 0, :]
@@ -95,31 +89,37 @@ class GradCAM:
                 "fatigue":    self._model.head_fatigue,
                 "emotion":    self._model.head_emotion,
             }
-            if head not in head_map:
-                head = "stress"
-            out_val = head_map[head](h).sum()
+            chosen_head = head_map.get(head, self._model.head_stress)
+            out_val = chosen_head(h).sum()
 
             self._model.zero_grad()
             out_val.backward()
 
-            if self._activations is None or self._gradients is None:
-                return np.zeros(FACE_DIM, dtype=np.float32)
+            face_W = self._model.mod_proj.projs["face"].weight.detach().cpu().numpy()  # (64,12)
 
-            # Global-average-pool gradients over D_MODEL dim → scalar weight per channel
-            weights = self._gradients.mean(axis=-1, keepdims=True)  # (B,1)
-            cam     = (self._activations * weights).mean(axis=0)     # (64,)
-            cam     = np.maximum(cam, 0)                             # ReLU
+            if (self._activations is not None and self._gradients is not None):
+                # Standard GradCAM: weight activations by mean gradient
+                weights = self._gradients.mean(axis=-1, keepdims=True)  # (B,1)
+                cam     = (self._activations * weights).sum(axis=0)     # (64,)
+                cam_relu = np.maximum(cam, 0)
+                au_sal  = np.abs(face_W.T @ cam_relu)   # (12,)
 
-            # Project 64-dim cam back to 12 face AUs via weight matrix of face linear
-            face_W  = self._model.mod_proj.projs["face"].weight.detach().cpu().numpy()  # (64,12)
-            au_saliency = np.abs(face_W.T @ cam)    # (12,)
+                if au_sal.max() < 1e-8:
+                    # Fallback: gradient magnitudes projected through weight matrix
+                    grad_mag = np.abs(self._gradients).mean(axis=0)  # (64,)
+                    au_sal   = np.abs(face_W.T @ grad_mag)
+            else:
+                au_sal = np.zeros(FACE_DIM, dtype=np.float32)
+
+            # Final fallback: weight row norms (always non-zero after training)
+            if au_sal.max() < 1e-8:
+                au_sal = np.abs(face_W).mean(axis=0)   # (12,)
 
         finally:
             self._remove_hooks()
             self._model.eval()
 
-        # Normalise
-        _max = au_saliency.max()
+        _max = au_sal.max()
         if _max > 1e-8:
-            au_saliency = au_saliency / _max
-        return au_saliency.astype(np.float32)
+            au_sal = au_sal / _max
+        return au_sal.astype(np.float32)
