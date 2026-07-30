@@ -119,7 +119,7 @@ class SessionRunner:
             "face": face_feats, "gaze": gaze_feats, "pose": pose_feats,
             "voice": voice_feats, "hci": hci_feats,
         }
-        prediction = self._predictor.predict(feature_dicts)
+        prediction = self._predictor.predict(feature_dicts, bgr_frame=frame)
         if prediction.feature_vector is not None:
             shap = self._explainer.explain(prediction.feature_vector)
             self.latest_shap = shap.get("stress", {})
