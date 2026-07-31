@@ -22,21 +22,21 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.testclient import TestClient as StarletteTestClient
 
-from backend.app.core.security import (
+from app.core.security import (
     blacklist_token,
     clear_blacklist,
     create_access_token,
     decode_access_token,
     is_token_blacklisted,
 )
-from backend.app.core.rate_limit import (
+from app.core.rate_limit import (
     check_account_lockout,
     clear_failed_logins,
     record_failed_login,
     LOCKOUT_MAX_ATTEMPTS,
 )
-from backend.app.core.security_headers import SecurityHeadersMiddleware
-from backend.app.core.content_size import ContentSizeLimitMiddleware
+from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.content_size import ContentSizeLimitMiddleware
 
 
 # ── Token blacklist ────────────────────────────────────────────────────────────
@@ -81,8 +81,8 @@ class TestTokenBlacklist:
 
 class TestPasswordStrength:
     def _make_client(self):
-        from backend.app.api.v1.endpoints.auth import router
-        from backend.app.api.dependencies import get_db
+        from app.api.v1.endpoints.auth import router
+        from app.api.dependencies import get_db
 
         def _noop_rl(limit=10, window_seconds=60):
             async def _dep(): return None
@@ -95,7 +95,7 @@ class TestPasswordStrength:
             yield AsyncMock()
 
         app.dependency_overrides[get_db] = _noop_db
-        with patch("backend.app.api.v1.endpoints.auth.rate_limit", side_effect=_noop_rl):
+        with patch("app.api.v1.endpoints.auth.rate_limit", side_effect=_noop_rl):
             return TestClient(app, raise_server_exceptions=True)
 
     def test_short_password_rejected(self):
@@ -111,8 +111,8 @@ class TestPasswordStrength:
     def test_digit_satisfies_requirement(self):
         c = self._make_client()
         with (
-            patch("backend.app.api.v1.endpoints.auth.get_user_by_email", new=AsyncMock(return_value=None)),
-            patch("backend.app.api.v1.endpoints.auth.create_user_with_password", new=AsyncMock(return_value=_fake_user())),
+            patch("app.api.v1.endpoints.auth.get_user_by_email", new=AsyncMock(return_value=None)),
+            patch("app.api.v1.endpoints.auth.create_user_with_password", new=AsyncMock(return_value=_fake_user())),
         ):
             r = c.post("/auth/register", json={"email": "a@b.com", "password": "password1"})
         assert r.status_code == 201
@@ -120,8 +120,8 @@ class TestPasswordStrength:
     def test_special_char_satisfies_requirement(self):
         c = self._make_client()
         with (
-            patch("backend.app.api.v1.endpoints.auth.get_user_by_email", new=AsyncMock(return_value=None)),
-            patch("backend.app.api.v1.endpoints.auth.create_user_with_password", new=AsyncMock(return_value=_fake_user())),
+            patch("app.api.v1.endpoints.auth.get_user_by_email", new=AsyncMock(return_value=None)),
+            patch("app.api.v1.endpoints.auth.create_user_with_password", new=AsyncMock(return_value=_fake_user())),
         ):
             r = c.post("/auth/register", json={"email": "a@b.com", "password": "password!"})
         assert r.status_code == 201
@@ -155,8 +155,8 @@ class TestAccountLockout:
 
 class TestLogoutEndpoint:
     def _make_app_with_user(self, user_id: str) -> FastAPI:
-        from backend.app.api.v1.endpoints.auth import router
-        from backend.app.api.dependencies import get_db, get_current_user
+        from app.api.v1.endpoints.auth import router
+        from app.api.dependencies import get_db, get_current_user
 
         def _noop_rl(limit=10, window_seconds=60):
             async def _dep(): return None
@@ -179,7 +179,7 @@ class TestLogoutEndpoint:
         payload = decode_access_token(token)
         jti = payload["jti"]
 
-        with patch("backend.app.api.v1.endpoints.auth.rate_limit",
+        with patch("app.api.v1.endpoints.auth.rate_limit",
                    side_effect=lambda **kw: (lambda: None)):
             app = self._make_app_with_user(uid)
 
@@ -190,11 +190,11 @@ class TestLogoutEndpoint:
 
     def test_logout_requires_auth(self):
         uid = str(uuid.uuid4())
-        with patch("backend.app.api.v1.endpoints.auth.rate_limit",
+        with patch("app.api.v1.endpoints.auth.rate_limit",
                    side_effect=lambda **kw: (lambda: None)):
             app = self._make_app_with_user(uid)
             # remove override so real auth runs
-            from backend.app.api.dependencies import get_current_user
+            from app.api.dependencies import get_current_user
             app.dependency_overrides.pop(get_current_user, None)
 
         with TestClient(app, raise_server_exceptions=False) as c:

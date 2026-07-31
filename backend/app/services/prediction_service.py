@@ -10,8 +10,8 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.models.prediction import Prediction
-from backend.app.schemas.prediction import PredictionCreate
+from app.db.models.prediction import Prediction
+from app.schemas.prediction import PredictionCreate
 
 
 async def create_prediction(db: AsyncSession, data: PredictionCreate) -> Prediction:
@@ -56,7 +56,7 @@ async def get_xai_summary(db: AsyncSession, session_id: uuid.UUID):
     Returns XAISummary or None if session has no predictions.
     """
     from collections import defaultdict
-    from backend.app.schemas.prediction import ModalityTrend, XAISummary
+    from app.schemas.prediction import ModalityTrend, XAISummary
 
     predictions = await list_predictions_for_session(db, session_id)
     if not predictions:

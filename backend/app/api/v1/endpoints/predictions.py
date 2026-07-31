@@ -13,9 +13,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.session import get_db
-from backend.app.schemas.prediction import PredictionCreate, PredictionRead, XAISummary
-from backend.app.services import prediction_service
+from app.db.session import get_db
+from app.schemas.prediction import PredictionCreate, PredictionRead, XAISummary
+from app.services import prediction_service
 
 router = APIRouter()
 

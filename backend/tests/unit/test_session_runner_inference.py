@@ -260,7 +260,7 @@ class TestSessionRunnerPassesFrameToPredictor:
     @pytest.mark.asyncio
     async def test_tick_passes_frame_as_bgr_frame(self):
         """The core regression test: _tick() must call predict(…, bgr_frame=frame)."""
-        with patch("backend.app.core.stream_bus.publish", return_value=None), \
+        with patch("app.core.stream_bus.publish", return_value=None), \
              patch("ml.xai.nl_explainer.generate_explanation", return_value=""):
             runner, mock_predictor = self._make_runner()
             await runner._tick()
@@ -275,7 +275,7 @@ class TestSessionRunnerPassesFrameToPredictor:
     @pytest.mark.asyncio
     async def test_tick_passes_correct_frame(self):
         """bgr_frame passed to predict() must be the frame from CameraCapture."""
-        with patch("backend.app.core.stream_bus.publish", return_value=None), \
+        with patch("app.core.stream_bus.publish", return_value=None), \
              patch("ml.xai.nl_explainer.generate_explanation", return_value=""):
             runner, mock_predictor = self._make_runner()
             await runner._tick()
@@ -288,7 +288,7 @@ class TestSessionRunnerPassesFrameToPredictor:
     @pytest.mark.asyncio
     async def test_tick_passes_feature_dicts(self):
         """feature_dicts positional arg must also be present."""
-        with patch("backend.app.core.stream_bus.publish", return_value=None), \
+        with patch("app.core.stream_bus.publish", return_value=None), \
              patch("ml.xai.nl_explainer.generate_explanation", return_value=""):
             runner, mock_predictor = self._make_runner()
             await runner._tick()
@@ -300,7 +300,7 @@ class TestSessionRunnerPassesFrameToPredictor:
 
     @pytest.mark.asyncio
     async def test_tick_predict_called_once_per_tick(self):
-        with patch("backend.app.core.stream_bus.publish", return_value=None), \
+        with patch("app.core.stream_bus.publish", return_value=None), \
              patch("ml.xai.nl_explainer.generate_explanation", return_value=""):
             runner, mock_predictor = self._make_runner()
             await runner._tick()
@@ -309,7 +309,7 @@ class TestSessionRunnerPassesFrameToPredictor:
 
     @pytest.mark.asyncio
     async def test_tick_stores_latest_prediction(self):
-        with patch("backend.app.core.stream_bus.publish", return_value=None), \
+        with patch("app.core.stream_bus.publish", return_value=None), \
              patch("ml.xai.nl_explainer.generate_explanation", return_value=""):
             runner, _ = self._make_runner()
             await runner._tick()

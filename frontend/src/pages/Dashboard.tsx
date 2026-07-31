@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Activity } from 'lucide-react'
 import { useStream } from '@/hooks/useStream'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -28,10 +28,8 @@ export default function Dashboard() {
   const { user } = useCurrentUser()
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [paused, setPaused] = useState(false)
+  const [showPermissionWarning, setShowPermissionWarning] = useState(false)
 
-  // null / no session selected  -> demo mode (synthetic live stream)
-  // status === 'active'         -> live WebSocket stream for the real session
-  // status !== 'active'         -> completed session, read predictions over REST
   const isLive = activeSession === null || activeSession.status === 'active'
   const liveSessionId = activeSession === null ? 'demo' : activeSession.id
 
@@ -68,7 +66,19 @@ export default function Dashboard() {
 
   const p = prediction
 
+  useEffect(() => {
+    if (isLive && status === 'open' && !p) {
+      const timer = setTimeout(() => {
+        setShowPermissionWarning(true)
+      }, 5000)
+      return () => clearTimeout(timer)
+    } else {
+      setShowPermissionWarning(false)
+    }
+  }, [isLive, status, p])
+
   return (
+
     <div className="min-h-screen bg-gray-900 text-white font-sans">
       <header className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
         <div className="flex items-center gap-2">
@@ -94,6 +104,14 @@ export default function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 space-y-6">
+        {showPermissionWarning && (
+          <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-300 flex items-center gap-2">
+            <span>⚠️</span>
+            <span>
+              <strong>Capture active but no data received:</strong> Please ensure camera and microphone permissions are granted and that the hardware is not in use by another application.
+            </span>
+          </div>
+        )}
 
         <SessionPanel user={user} activeSession={activeSession} onSelectSession={setActiveSession} />
 

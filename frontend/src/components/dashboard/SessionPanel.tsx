@@ -17,6 +17,8 @@ import {
   exportSessionCsv,
   listUserSessions,
   updateSessionContext,
+  startRunner,
+  stopRunner,
 } from '@/services/api'
 import { useSessionStats } from '@/hooks/useSessionStats'
 import { SessionStatsCard } from './SessionStatsCard'
@@ -82,6 +84,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
       const session = await createSession(user.id, 'live')
       setSessions((prev) => [session, ...prev])
       onSelectSession(session)
+      await startRunner(session.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start session')
     } finally { setBusy(false) }
@@ -91,6 +94,11 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
     if (!activeSession || busy) return
     setBusy(true); setError(null)
     try {
+      try {
+        await stopRunner(activeSession.id)
+      } catch (runnerErr) {
+        console.error('Failed to stop runner:', runnerErr)
+      }
       const ended = await endSession(activeSession.id)
       setSessions((prev) => prev.map((s) => (s.id === ended.id ? ended : s)))
       onSelectSession(ended)
@@ -155,16 +163,21 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
               disabled={!user || busy}
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Play className="h-3.5 w-3.5" /> New Session
+              <Play className="h-3.5 w-3.5" /> Start Analysis
             </button>
           ) : (
-            <button
-              onClick={handleEnd}
-              disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Square className="h-3.5 w-3.5" /> End Session
-            </button>
+            <>
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">
+                🎥 Analysis active
+              </span>
+              <button
+                onClick={handleEnd}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Square className="h-3.5 w-3.5" /> Stop Analysis
+              </button>
+            </>
           )}
           <button
             onClick={() => onSelectSession(null)}
@@ -231,7 +244,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
                       )}
                     </span>
                     <span className={clsx('ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', STATUS_STYLE[s.status])}>
-                      {s.status}
+                      {s.status === 'active' ? '🎥 active' : s.status}
                     </span>
                   </button>
 

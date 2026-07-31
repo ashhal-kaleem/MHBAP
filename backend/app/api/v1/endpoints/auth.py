@@ -22,20 +22,20 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.security import (
+from app.core.security import (
     create_access_token,
     decode_access_token,
     verify_password,
     blacklist_token,
 )
-from backend.app.core.rate_limit import (
+from app.core.rate_limit import (
     rate_limit,
     check_account_lockout,
     record_failed_login,
     clear_failed_logins,
 )
-from backend.app.api.dependencies import get_current_user, get_bearer_token, get_db
-from backend.app.services.user_service import (
+from app.api.dependencies import get_current_user, get_bearer_token, get_db
+from app.services.user_service import (
     create_user_with_password,
     get_user_by_email,
     get_user,

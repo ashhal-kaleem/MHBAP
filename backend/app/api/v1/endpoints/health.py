@@ -24,7 +24,7 @@ class ReadinessResponse(BaseModel):
 @router.get("/", response_model=HealthResponse, summary="Liveness probe")
 async def liveness() -> HealthResponse:
     """Returns 200 if the application process is alive."""
-    from backend.app.core.config import settings
+    from app.core.config import settings
     return HealthResponse(
         status="ok",
         version=settings.APP_VERSION,
@@ -35,8 +35,8 @@ async def liveness() -> HealthResponse:
 @router.get("/ready", response_model=ReadinessResponse, summary="Readiness probe")
 async def readiness(response: Response) -> ReadinessResponse:
     """Returns 200 only if all downstream dependencies are reachable, else 503."""
-    from backend.app.core.redis import check_redis_connection
-    from backend.app.db.session import check_db_connection
+    from app.core.redis import check_redis_connection
+    from app.db.session import check_db_connection
 
     db_ok = await check_db_connection()
     redis_ok = await check_redis_connection()

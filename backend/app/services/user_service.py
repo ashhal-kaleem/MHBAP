@@ -13,9 +13,9 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.security import hash_password
-from backend.app.db.models.user import User
-from backend.app.schemas.user import UserCreate
+from app.core.security import hash_password
+from app.db.models.user import User
+from app.schemas.user import UserCreate
 
 
 async def create_user(db: AsyncSession, data: UserCreate) -> User:

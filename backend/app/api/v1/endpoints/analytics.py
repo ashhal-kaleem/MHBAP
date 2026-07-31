@@ -13,9 +13,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.session import get_db
-from backend.app.schemas.analytics import UserAnalytics
-from backend.app.services import analytics_service
+from app.db.session import get_db
+from app.schemas.analytics import UserAnalytics
+from app.services import analytics_service
 
 router = APIRouter()
 

@@ -7,8 +7,8 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.core.security import decode_access_token, is_token_blacklisted
-from backend.app.db.session import get_db  # re-export for convenience
+from app.core.security import decode_access_token, is_token_blacklisted
+from app.db.session import get_db  # re-export for convenience
 
 _bearer = HTTPBearer(auto_error=False)
 

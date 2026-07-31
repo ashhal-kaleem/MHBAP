@@ -8,8 +8,8 @@ from uuid import uuid4
 
 import pytest
 
-from backend.app.schemas.session import SessionCreate, SessionContextUpdate, SessionUpdate
-from backend.app.services import session_service
+from app.schemas.session import SessionCreate, SessionContextUpdate, SessionUpdate
+from app.services import session_service
 
 
 @pytest.mark.asyncio

@@ -10,9 +10,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.session import get_db
-from backend.app.schemas.user import UserCreate, UserRead
-from backend.app.services import user_service
+from app.db.session import get_db
+from app.schemas.user import UserCreate, UserRead
+from app.services import user_service
 
 router = APIRouter()
 

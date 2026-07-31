@@ -101,6 +101,7 @@ def main() -> None:
     from ml.fusion.tcmt import TCMT
     from ml.evaluation.metrics import compute_all_metrics
 
+    ckpt = torch.load(CHECKPOINT_PATH, map_location="cpu")
     state_dict = (
         ckpt["state_dict"]
         if isinstance(ckpt, dict) and "state_dict" in ckpt

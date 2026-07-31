@@ -89,6 +89,11 @@ class SessionRunner:
         """Signal run_until_stopped() to exit cleanly."""
         self._stop.set()
 
+    @property
+    def running(self) -> bool:
+        """Whether the runner is currently active."""
+        return not self._stop.is_set()
+
     # ------------------------------------------------------------------
     async def run_until_stopped(self) -> None:
         interval = 1.0 / self._fps

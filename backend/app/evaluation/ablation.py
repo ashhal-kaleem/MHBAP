@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import numpy as np
 
-from backend.app.evaluation.metrics import EvaluationReport, compute_report
+from app.evaluation.metrics import EvaluationReport, compute_report
 
 # ── paths ──────────────────────────────────────────────────────────────────────
 _REPO_ROOT = Path(__file__).parent.parent.parent.parent

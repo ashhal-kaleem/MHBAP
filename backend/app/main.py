@@ -15,10 +15,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from backend.app.core.config import settings
-from backend.app.core.logging import setup_logging
-from backend.app.core.security_headers import SecurityHeadersMiddleware
-from backend.app.core.content_size import ContentSizeLimitMiddleware
+from app.core.config import settings
+from app.core.logging import setup_logging
+from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.content_size import ContentSizeLimitMiddleware
 
 
 @asynccontextmanager
@@ -27,8 +27,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
-    from backend.app.core.redis import get_redis
-    from backend.app.db.session import get_engine
+    from app.core.redis import get_redis
+    from app.db.session import get_engine
 
     get_engine()  # opens the pool lazily; first real query connects
     get_redis()
@@ -38,8 +38,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     logger.info("Shutting down MHBAP")
-    from backend.app.core.redis import close_redis
-    from backend.app.db.session import dispose_engine
+    from app.core.redis import close_redis
+    from app.db.session import dispose_engine
 
     await dispose_engine()
     await close_redis()
@@ -76,7 +76,7 @@ def create_app() -> FastAPI:
     )
 
     # Routers — added phase by phase
-    from backend.app.api.v1 import router as v1_router
+    from app.api.v1 import router as v1_router
     app.include_router(v1_router, prefix="/api/v1")
 
     return app

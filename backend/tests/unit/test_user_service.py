@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 
-from backend.app.schemas.user import UserCreate
-from backend.app.services import user_service
+from app.schemas.user import UserCreate
+from app.services import user_service
 
 
 @pytest.mark.asyncio

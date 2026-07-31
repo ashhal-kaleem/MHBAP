@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
 
-from backend.app.core.redis_stream_bus import subscribe as redis_subscribe, publish as redis_publish
+from app.core.redis_stream_bus import subscribe as redis_subscribe, publish as redis_publish
 
 router = APIRouter()
 

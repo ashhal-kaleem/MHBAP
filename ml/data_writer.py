@@ -15,8 +15,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_db
-from app.db.models.modality_feature import ModalityFeature
+from backend.app.db.session import get_db
+from backend.app.db.models.modality_feature import ModalityFeature
 
 logger = logging.getLogger(__name__)
 

@@ -15,16 +15,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.api.dependencies import get_optional_user
-from backend.app.db.session import get_db
-from backend.app.schemas.session import (
+from app.api.dependencies import get_optional_user
+from app.db.session import get_db
+from app.schemas.session import (
     SessionContextUpdate,
     SessionCreate,
     SessionRead,
     SessionStats,
     SessionUpdate,
 )
-from backend.app.services import session_service
+from app.services import session_service
 
 router = APIRouter()
 
@@ -108,8 +108,8 @@ async def export_session_json(
 ):
     """Export all predictions for a session as a JSON file."""
     import json as _json
-    from backend.app.services.prediction_service import list_predictions_for_session
-    from backend.app.schemas.prediction import PredictionRead
+    from app.services.prediction_service import list_predictions_for_session
+    from app.schemas.prediction import PredictionRead
 
     session = await session_service.get_session(db, session_id)
     if session is None:
@@ -139,7 +139,7 @@ async def export_session_csv(
     session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> StreamingResponse:
     """Stream predictions for a session as a CSV file for offline analysis."""
-    from backend.app.services.prediction_service import list_predictions_for_session  # local import avoids circular
+    from app.services.prediction_service import list_predictions_for_session  # local import avoids circular
 
     session = await session_service.get_session(db, session_id)
     if session is None:

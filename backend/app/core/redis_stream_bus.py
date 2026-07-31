@@ -48,7 +48,7 @@ async def _probe_redis() -> bool:
     if _redis_available is not None:
         return _redis_available
     try:
-        from backend.app.core.redis import get_redis
+        from app.core.redis import get_redis
         await get_redis().ping()
         _redis_available = True
         logger.info("Redis available — using Redis pub/sub bus")
@@ -64,13 +64,13 @@ async def publish(session_id: str, message: Any) -> None:
     """Publish a WsMessage dict to all subscribers of this session."""
     if await _probe_redis():
         try:
-            from backend.app.core.redis import get_redis
+            from app.core.redis import get_redis
             await get_redis().publish(_channel(session_id), json.dumps(message))
             return
         except Exception as exc:
             logger.error(f"Redis publish failed ({exc}), falling back to in-process")
     # fallback
-    from backend.app.core import stream_bus
+    from app.core import stream_bus
     stream_bus.publish(session_id, message)
 
 
@@ -98,7 +98,7 @@ async def subscribe(session_id: str, maxsize: int = 128) -> AsyncIterator[asynci
                 pass
     else:
         # in-process fallback
-        from backend.app.core import stream_bus
+        from app.core import stream_bus
         q = stream_bus.subscribe(session_id, maxsize=maxsize)
         try:
             yield q
@@ -108,7 +108,7 @@ async def subscribe(session_id: str, maxsize: int = 128) -> AsyncIterator[asynci
 
 async def _redis_drain(session_id: str, q: asyncio.Queue) -> None:
     """Background task: subscribe to Redis channel and push decoded msgs to queue."""
-    from backend.app.core.redis import get_redis_pool
+    from app.core.redis import get_redis_pool
     import redis.asyncio as redis
 
     channel = _channel(session_id)
