@@ -549,15 +549,20 @@ class TestResourceOwnership:
         owner_id = str(uuid.uuid4())
         other_id = str(uuid.uuid4())
         session_id = str(uuid.uuid4())
-        token = self._get_token(other_id)
 
         mock_session = AsyncMock()
         mock_session.user_id = uuid.UUID(owner_id)
-        
+
+        # Runner now uses require_roles → get_current_user_with_role (needs DB lookup).
+        # Override it directly so the test stays a pure unit test.
+        from app.api.dependencies import get_current_user_with_role as _gcuwr
+        app = self._make_app()
+        app.dependency_overrides[_gcuwr] = lambda: (other_id, "participant")
+
         with patch("app.services.session_service.get_session", new=AsyncMock(return_value=mock_session)):
-            with TestClient(self._make_app(), raise_server_exceptions=False) as c:
-                r = c.post(f"/runner/session/{session_id}/start", headers={"Authorization": f"Bearer {token}"})
-            assert r.status_code == 403
+            with TestClient(app, raise_server_exceptions=False) as c:
+                r = c.post(f"/runner/session/{session_id}/start")
+        assert r.status_code == 403
 
     def test_evaluation_authenticated(self):
         token = self._get_token(str(uuid.uuid4()))

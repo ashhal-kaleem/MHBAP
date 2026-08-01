@@ -36,7 +36,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.api.dependencies import get_current_user
+from app.api.dependencies import require_roles, RUNNER_ALLOWED_ROLES
 from app.services import session_service
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ def _task_done_callback(session_id: str, task: asyncio.Task) -> None:
 async def start_runner(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user_id: str = Depends(get_current_user),
+    auth: tuple = Depends(require_roles(list(RUNNER_ALLOWED_ROLES))),
 ) -> RunnerStatus:
     """
     Launch a SessionRunner background task for ``session_id``.
@@ -102,6 +102,7 @@ async def start_runner(
     will appear on the WebSocket stream within the first pipeline tick (~67 ms
     at 15 fps).
     """
+    current_user_id, _role = auth
     sid = str(session_id)
 
     session = await session_service.get_session(db, session_id)
@@ -128,7 +129,7 @@ async def start_runner(
 async def stop_runner(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user_id: str = Depends(get_current_user),
+    auth: tuple = Depends(require_roles(list(RUNNER_ALLOWED_ROLES))),
 ) -> RunnerStatus:
     """
     Signal the SessionRunner for ``session_id`` to stop cleanly.
@@ -137,6 +138,7 @@ async def stop_runner(
     the background task.  Returns immediately; cleanup happens asynchronously.
     Returns 404 if no runner is active.
     """
+    current_user_id, _role = auth
     sid = str(session_id)
 
     session = await session_service.get_session(db, session_id)
@@ -168,9 +170,10 @@ async def stop_runner(
 async def runner_status(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user_id: str = Depends(get_current_user),
+    auth: tuple = Depends(require_roles(list(RUNNER_ALLOWED_ROLES))),
 ) -> RunnerStatus:
     """Return whether a runner task is currently active for ``session_id``."""
+    current_user_id, _role = auth
     sid = str(session_id)
 
     session = await session_service.get_session(db, session_id)
