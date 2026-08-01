@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import AsyncGenerator, Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status, Query, WebSocket, WebSocketException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,6 +58,35 @@ async def get_current_user(
             detail="Invalid token payload",
         )
     request.state.user_id = user_id
+    return user_id
+
+
+async def get_ws_current_user(
+    websocket: WebSocket,
+    access_token: Optional[str] = Query(None),
+) -> str:
+    """Validate Bearer JWT for WebSockets. Returns user_id or raises WebSocketException."""
+    token = access_token
+    if not token:
+        auth_header = websocket.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+
+    if not token:
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Missing authentication token")
+
+    try:
+        payload = decode_access_token(token)
+    except ValueError as exc:
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason=str(exc))
+
+    if await is_token_blacklisted(payload.get("jti")):
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Token has been revoked")
+
+    user_id: Optional[str] = payload.get("sub")
+    if not user_id:
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token payload")
+
     return user_id
 
 

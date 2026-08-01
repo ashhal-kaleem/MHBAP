@@ -35,10 +35,11 @@ import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from loguru import logger
 
 from app.core.redis_stream_bus import subscribe as redis_subscribe, publish as redis_publish
+from app.api.dependencies import get_ws_current_user
 
 router = APIRouter()
 
@@ -127,7 +128,11 @@ async def _send_frame(ws: WebSocket, frame_type: str, payload) -> None:
 # ── WebSocket: live session stream ────────────────────────────────────────
 
 @router.websocket("/session/{session_id}")
-async def ws_session_stream(websocket: WebSocket, session_id: str) -> None:
+async def ws_session_stream(
+    websocket: WebSocket,
+    session_id: str,
+    user_id: str = Depends(get_ws_current_user),
+) -> None:
     """
     Subscribe to a running session's prediction stream.
     Closes with code 1008 (policy violation) if the per-session cap is hit.
@@ -193,7 +198,10 @@ async def _ping_loop(ws: WebSocket) -> None:
 # ── WebSocket: demo stream ────────────────────────────────────────────────
 
 @router.websocket("/demo")
-async def ws_demo_stream(websocket: WebSocket) -> None:
+async def ws_demo_stream(
+    websocket: WebSocket,
+    user_id: str = Depends(get_ws_current_user),
+) -> None:
     """
     Synthetic prediction stream for UI development / demos.
     No DB, no hardware, no Redis required.
