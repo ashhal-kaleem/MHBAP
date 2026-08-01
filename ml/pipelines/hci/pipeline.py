@@ -20,7 +20,7 @@ interaction_entropy  : Shannon entropy of event-type distribution [0, 1]
 from __future__ import annotations
 
 import math
-from typing import Dict, List
+from typing import Dict, List, Tuple, Any
 
 import numpy as np
 
@@ -30,7 +30,34 @@ from ml.pipelines.base import BasePipeline
 class HCIPipeline(BasePipeline):
     MODALITY = "hci"
 
-    def process(self, events: List[dict]) -> Dict[str, float]:  # type: ignore[override]
+    def process(self, events: List[dict] | Tuple[List[Any], List[Any]]) -> Dict[str, float]:
+        if isinstance(events, tuple):
+            mouse_events, key_events = events
+            converted = []
+
+            for e in mouse_events:
+                converted.append({
+                    "type": (
+                        "mouse_move" if e.event == "move"
+                        else "mouse_click" if "click" in e.event
+                        else "mouse_scroll"
+                    ),
+                    "ts": e.t,
+                    "x": e.x,
+                    "y": e.y,
+                    "dy": e.scroll_dy,
+                    "button": e.button,
+                })
+
+            for e in key_events:
+                converted.append({
+                    "type": "key_press",
+                    "ts": e.t,
+                    "key": e.category,
+                })
+
+            events = converted
+            events.sort(key=lambda e: e["ts"])
         zeros = {k: 0.0 for k in [
             "mouse_speed", "mouse_acceleration", "click_rate",
             "scroll_intensity", "keystroke_rate", "dwell_time",
@@ -40,22 +67,22 @@ class HCIPipeline(BasePipeline):
         if not events:
             return zeros
 
-        t0 = events[0]["ts"]
-        t1 = events[-1]["ts"]
+        t0 = float(events[0]["ts"])
+        t1 = float(events[-1]["ts"])
         window = max(t1 - t0, 1e-3)
 
-        mouse_moves  = [e for e in events if e["type"] == "mouse_move"]
-        clicks       = [e for e in events if e["type"] == "mouse_click"]
-        scrolls      = [e for e in events if e["type"] == "mouse_scroll"]
-        keystrokes   = [e for e in events if e["type"] == "key_press"]
-        backspaces   = [e for e in keystrokes if e.get("key") in ("backspace", "Key.backspace")]
+        mouse_moves = [e for e in events if e["type"] == "mouse_move"]
+        clicks = [e for e in events if e["type"] == "mouse_click"]
+        scrolls = [e for e in events if e["type"] == "mouse_scroll"]
+        keystrokes = [e for e in events if e["type"] == "key_press"]
+        backspaces = [e for e in keystrokes if e.get("key") in ("backspace", "Key.backspace")]
 
         # Mouse speed & acceleration
         speeds = []
         for i in range(1, len(mouse_moves)):
-            dt = max(mouse_moves[i]["ts"] - mouse_moves[i-1]["ts"], 1e-4)
-            dx = mouse_moves[i]["x"] - mouse_moves[i-1]["x"]
-            dy = mouse_moves[i]["y"] - mouse_moves[i-1]["y"]
+            dt = max(float(mouse_moves[i]["ts"]) - float(mouse_moves[i - 1]["ts"]), 1e-4,)
+            dx = float(mouse_moves[i]["x"]) - float(mouse_moves[i - 1]["x"])
+            dy = float(mouse_moves[i]["y"]) - float(mouse_moves[i - 1]["y"])
             speeds.append(math.hypot(dx, dy) / dt)
 
         mouse_speed = float(np.clip(np.mean(speeds) / 2000.0, 0.0, 1.0)) if speeds else 0.0
@@ -64,16 +91,16 @@ class HCIPipeline(BasePipeline):
         mouse_acceleration = float(np.clip(np.mean(accels) / 5000.0, 0.0, 1.0)) if accels else 0.0
 
         # Click & scroll rates
-        click_rate      = float(np.clip(len(clicks) / window, 0.0, 1.0))
+        click_rate = float(np.clip(len(clicks) / window, 0.0, 1.0))
         scroll_intensity = float(np.clip(
-            sum(abs(e.get("dy", 0)) for e in scrolls) / (window * 20), 0.0, 1.0))
+            sum(abs(float(e.get("dy", 0))) for e in scrolls) / (window * 20), 0.0, 1.0))
 
         # Keystroke dynamics
         keystroke_rate = float(np.clip(len(keystrokes) / window / 5.0, 0.0, 1.0))
 
         iki = []
         for i in range(1, len(keystrokes)):
-            iki.append(keystrokes[i]["ts"] - keystrokes[i-1]["ts"])
+            iki.append(float(keystrokes[i]["ts"]) - float(keystrokes[i - 1]["ts"]))
 
         dwell_time = float(np.clip(np.mean(iki) / 2.0, 0.0, 1.0)) if iki else 0.0
         typing_rhythm_std = float(np.clip(np.std(iki) / 1.0, 0.0, 1.0)) if iki else 0.0
@@ -82,7 +109,7 @@ class HCIPipeline(BasePipeline):
         # Mouse pause ratio
         if mouse_moves:
             pause_count = sum(1 for i in range(1, len(mouse_moves))
-                              if (mouse_moves[i]["ts"] - mouse_moves[i-1]["ts"]) > 0.5)
+                              if (float(mouse_moves[i]["ts"]) - float(mouse_moves[i - 1]["ts"])) > 0.5)
             mouse_pause_ratio = float(pause_count / max(len(mouse_moves) - 1, 1))
         else:
             mouse_pause_ratio = 1.0
@@ -97,11 +124,16 @@ class HCIPipeline(BasePipeline):
         interaction_entropy = float(np.clip(entropy / 3.0, 0.0, 1.0))  # max ~3 bits for 8 types
 
         return {
-            "mouse_speed": mouse_speed, "mouse_acceleration": mouse_acceleration,
-            "click_rate": click_rate, "scroll_intensity": scroll_intensity,
-            "keystroke_rate": keystroke_rate, "dwell_time": dwell_time,
-            "error_rate_proxy": error_rate_proxy, "typing_rhythm_std": typing_rhythm_std,
-            "mouse_pause_ratio": mouse_pause_ratio, "interaction_entropy": interaction_entropy,
+            "mouse_speed": mouse_speed,
+            "mouse_acceleration": mouse_acceleration,
+            "click_rate": click_rate,
+            "scroll_intensity": scroll_intensity,
+            "keystroke_rate": keystroke_rate,
+            "dwell_time": dwell_time,
+            "error_rate_proxy": error_rate_proxy,
+            "typing_rhythm_std": typing_rhythm_std,
+            "mouse_pause_ratio": mouse_pause_ratio,
+            "interaction_entropy": interaction_entropy,
         }
 
     def warm_up(self) -> None:

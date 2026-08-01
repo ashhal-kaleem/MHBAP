@@ -26,7 +26,7 @@ def get_bearer_token(
     return credentials.credentials
 
 
-def get_current_user(
+async def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
 ) -> str:
@@ -45,7 +45,7 @@ def get_current_user(
             detail=str(exc),
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if is_token_blacklisted(payload.get("jti")):
+    if await is_token_blacklisted(payload.get("jti")):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has been revoked",

@@ -152,7 +152,7 @@ async def refresh(
     the token that was just used (refresh-token rotation)."""
     try:
         payload = decode_access_token(token)
-        blacklist_token(payload.get("jti", ""), payload.get("exp", 0))
+        await blacklist_token(payload.get("jti", ""), payload.get("exp", 0))
     except ValueError:
         # Token was already validated by get_current_user in real use; this
         # only trips in tests that stub get_current_user with a dummy token.
@@ -170,7 +170,7 @@ async def logout(
     """Revoke the current access token so it can no longer be used."""
     try:
         payload = decode_access_token(token)
-        blacklist_token(payload.get("jti", ""), payload.get("exp", 0))
+        await blacklist_token(payload.get("jti", ""), payload.get("exp", 0))
     except ValueError:
         pass
     return None

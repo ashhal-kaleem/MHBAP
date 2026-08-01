@@ -15,8 +15,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.session import get_db
-from backend.app.db.models.modality_feature import ModalityFeature
+from app.db.session import get_session_factory
+from app.db.models.modality_feature import ModalityFeature
 
 logger = logging.getLogger(__name__)
 
@@ -63,16 +63,41 @@ class DataWriter:
     async def _flush_loop(self) -> None:
         while True:
             item = await self._queue.get()
+
+            batch = [item]
+
             try:
-                async for db in get_db():
-                    row = ModalityFeature(
-                        session_id=item["session_id"],
-                        modality=item["modality"],
-                        features=item["features"],
-                    )
-                    db.add(row)
+                # Collect up to 50 rows
+                while len(batch) < 50:
+                    try:
+                        batch.append(self._queue.get_nowait())
+                    except asyncio.QueueEmpty:
+                        break
+
+                async with get_session_factory()() as db:
+                    rows = [
+                        ModalityFeature(
+                            session_id=x["session_id"],
+                            modality=x["modality"],
+                            feature_vector=x["features"],
+                        )
+                        for x in batch
+                    ]
+
+                    db.add_all(rows)
                     await db.commit()
+
+                logger.info(
+                    "DataWriter flushed %s rows",
+                    len(batch),
+                )
+
             except Exception as exc:
-                logger.error("DataWriter flush error: %s", exc)
+                logger.error(
+                    "DataWriter flush error: %s",
+                    exc,
+                )
+
             finally:
-                self._queue.task_done()
+                for _ in batch:
+                    self._queue.task_done()

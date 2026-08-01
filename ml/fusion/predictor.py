@@ -41,7 +41,7 @@ EMOTION_LABELS = [
 ]
 
 T_STEPS      = 8
-WEIGHTS_PATH = Path("ml/models/weights/tcmt.pt")
+WEIGHTS_PATH = Path(__file__).parent.parent / "models" / "weights" / "tcmt.pt"
 
 
 @dataclass

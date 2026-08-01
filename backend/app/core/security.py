@@ -104,37 +104,32 @@ def decode_access_token(token: str) -> Dict[str, Any]:
 
 # ── Token blacklist (logout / refresh rotation) ───────────────────────────────
 #
-# In-process store, mirroring rate_limit.py's approach: sufficient for a
-# single-worker dev/test deployment; swap for a Redis SET with TTL in
-# production (same pattern used by core/redis.py for the stream bus).
+# Redis SET with TTL is used to efficiently manage blacklisted tokens across
+# multiple workers in production.
 
-_blacklist: Dict[str, float] = {}
-_blacklist_lock = Lock()
+from app.core.redis import get_redis
 
-
-def blacklist_token(jti: str, exp: float) -> None:
+async def blacklist_token(jti: str, exp: float) -> None:
     """Mark a token's *jti* as revoked until it would have expired anyway."""
     if not jti:
         return
-    with _blacklist_lock:
-        _blacklist[jti] = exp
+    ttl = max(int(exp - time.time()), 1)
+    client = get_redis()
+    await client.set(f"blacklist:{jti}", "1", ex=ttl)
 
 
-def is_token_blacklisted(jti: Optional[str]) -> bool:
-    """Check whether *jti* has been revoked. Lazily evicts expired entries."""
+async def is_token_blacklisted(jti: Optional[str]) -> bool:
+    """Check whether *jti* has been revoked."""
     if not jti:
         return False
-    with _blacklist_lock:
-        exp = _blacklist.get(jti)
-        if exp is None:
-            return False
-        if exp < time.time():
-            del _blacklist[jti]
-            return False
-        return True
+    client = get_redis()
+    exists = await client.exists(f"blacklist:{jti}")
+    return bool(exists)
 
 
-def clear_blacklist() -> None:
+async def clear_blacklist() -> None:
     """Test helper: wipe the blacklist store."""
-    with _blacklist_lock:
-        _blacklist.clear()
+    client = get_redis()
+    keys = await client.keys("blacklist:*")
+    if keys:
+        await client.delete(*keys)

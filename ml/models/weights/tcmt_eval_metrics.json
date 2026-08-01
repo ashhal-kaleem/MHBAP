@@ -1,72 +1,75 @@
 {
   "emotion": {
-    "accuracy": 0.34986666666666666,
-    "macro_f1": 0.317810848338927,
+    "accuracy": 0.3546666666666667,
+    "macro_f1": 0.3152015855582293,
     "per_class_f1": {
-      "0": 0.6438482886216467,
-      "1": 0.23425022182786157,
-      "2": 0.24251726784343822,
-      "3": 0.1506276150627615
+      "0": 0.6437847866419295,
+      "1": 0.26278659611992944,
+      "2": 0.24271079590228525,
+      "3": 0.11152416356877323
     },
     "confusion_matrix": [
       [
-        348,
-        32,
-        239,
-        25
+        347,
+        21,
+        246,
+        30
       ],
       [
         65,
-        132,
-        644,
-        92
+        149,
+        607,
+        112
       ],
       [
-        17,
+        13,
         19,
-        158,
-        15
+        154,
+        23
       ],
       [
-        7,
-        11,
+        9,
+        12,
         53,
-        18
+        15
       ]
     ],
-    "roc_auc_ovr": 0.7058854692849629
+    "roc_auc_ovr": 0.6619286230812919
   },
   "stress": {
-    "rmse": 0.08472029269258614,
-    "mae": 0.06285828351974487,
-    "r2": 0.7838450730280113
+    "rmse": 0.13190163988490516,
+    "mae": 0.0848313570022583,
+    "r2": 0.47604900598526
   },
   "engagement": {
-    "rmse": 0.07563696009073327,
-    "mae": 0.06102147325873375,
-    "r2": 0.5139626609068693
+    "rmse": 0.07256745442213895,
+    "mae": 0.058735474944114685,
+    "r2": 0.5526109933853149
   },
   "attention": {
-    "rmse": 0.07811147155454767,
-    "mae": 0.06225033849477768,
-    "r2": 0.4754143871574681
+    "rmse": 0.08645972431262723,
+    "mae": 0.069383405148983,
+    "r2": 0.35729092359542847
   },
   "fatigue": {
-    "rmse": 0.07601937286727399,
-    "mae": 0.060146622359752655,
-    "r2": 0.5209460975467974
+    "rmse": 0.06545720304705735,
+    "mae": 0.051585469394922256,
+    "r2": 0.6448181867599487
   },
-  "_v6_changes": "focal_loss gamma=2.0, emo_loss_w=4.0, reg_loss_w=0.25, D_MODEL=128, N_LAYERS=3, FFN=256, warmup+cosine LR, label_smoothing=0.05, 75 epochs, FER=9000 samples",
   "_label_provenance": {
-    "emotion": "REAL - FER2013/RAF-DB dataset class annotations",
-    "stress": "MIXED - WESAD GT physio + AU/HCI proxy for emotion samples",
-    "engagement": "PROXY - noisy gaze+voice formula; no public GT",
-    "attention": "PROXY - noisy gaze formula; no public GT",
-    "fatigue": "PROXY - noisy HCI formula; no public GT"
+    "emotion": "REAL - FER2013/RAF-DB annotations",
+    "stress": "MIXED - WESAD GT + AU/HCI proxy",
+    "engagement": "PROXY - noisy formula; no public GT",
+    "attention": "PROXY - noisy formula; no public GT",
+    "fatigue": "PROXY - noisy formula; no public GT"
   },
-  "_splits": {
+  "_colab_run": {
+    "epochs": 75,
+    "fer_samples": 9000,
     "n_train": 9375,
     "n_val": 1250,
-    "n_test": 1875
+    "n_test": 1875,
+    "best_val_f1": 0.3181867295214382,
+    "gpu": "Tesla T4"
   }
 }

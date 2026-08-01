@@ -20,7 +20,7 @@ from app.db.base import Base
 class ModalityFeature(Base):
     __tablename__ = "modality_features"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), primary_key=True
     )

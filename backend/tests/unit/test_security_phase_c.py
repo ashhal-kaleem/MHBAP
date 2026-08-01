@@ -39,36 +39,74 @@ from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.content_size import ContentSizeLimitMiddleware
 
 
+class FakeRedis:
+    def __init__(self):
+        self.store = {}
+    async def set(self, key, value, ex=None):
+        self.store[key] = (value, time.time() + (ex or 0))
+    async def exists(self, key):
+        if key in self.store:
+            val, exp = self.store[key]
+            if exp >= time.time():
+                return 1
+            else:
+                del self.store[key]
+        return 0
+    async def keys(self, pattern):
+        # Only handling blacklist:* pattern for tests
+        prefix = pattern.replace('*', '')
+        return [k for k in self.store.keys() if k.startswith(prefix)]
+    async def delete(self, *keys):
+        for k in keys:
+            self.store.pop(k, None)
+
+_fake_redis = FakeRedis()
+
 # ── Token blacklist ────────────────────────────────────────────────────────────
 
 class TestTokenBlacklist:
-    def setup_method(self):
-        clear_blacklist()
+    @pytest.fixture(autouse=True)
+    def patch_redis(self):
+        with patch("app.core.security.get_redis", return_value=_fake_redis):
+            yield
 
-    def test_fresh_jti_not_blacklisted(self):
+    @pytest.fixture(autouse=True)
+    async def setup_teardown(self, patch_redis):
+        await clear_blacklist()
+        yield
+        await clear_blacklist()
+
+    @pytest.mark.asyncio
+    async def test_fresh_jti_not_blacklisted(self):
         jti = str(uuid.uuid4())
-        assert is_token_blacklisted(jti) is False
+        assert await is_token_blacklisted(jti) is False
 
-    def test_blacklisted_jti_is_detected(self):
+    @pytest.mark.asyncio
+    async def test_blacklisted_jti_is_detected(self):
         jti = str(uuid.uuid4())
-        blacklist_token(jti, time.time() + 3600)
-        assert is_token_blacklisted(jti) is True
+        await blacklist_token(jti, time.time() + 3600)
+        assert await is_token_blacklisted(jti) is True
 
-    def test_expired_entry_auto_evicted(self):
+    @pytest.mark.asyncio
+    async def test_expired_entry_auto_evicted(self):
         jti = str(uuid.uuid4())
-        blacklist_token(jti, time.time() - 1)  # already expired
-        assert is_token_blacklisted(jti) is False
+        await blacklist_token(jti, time.time() - 1)  # expired, redis sets ttl=1
+        import asyncio
+        await asyncio.sleep(1.1) # wait for redis to evict
+        assert await is_token_blacklisted(jti) is False
 
-    def test_empty_jti_ignored(self):
-        blacklist_token("", time.time() + 3600)
-        assert is_token_blacklisted("") is False
-        assert is_token_blacklisted(None) is False
+    @pytest.mark.asyncio
+    async def test_empty_jti_ignored(self):
+        await blacklist_token("", time.time() + 3600)
+        assert await is_token_blacklisted("") is False
+        assert await is_token_blacklisted(None) is False
 
-    def test_clear_blacklist_wipes_all(self):
+    @pytest.mark.asyncio
+    async def test_clear_blacklist_wipes_all(self):
         jti = str(uuid.uuid4())
-        blacklist_token(jti, time.time() + 3600)
-        clear_blacklist()
-        assert is_token_blacklisted(jti) is False
+        await blacklist_token(jti, time.time() + 3600)
+        await clear_blacklist()
+        assert await is_token_blacklisted(jti) is False
 
     def test_token_includes_jti_claim(self):
         token = create_access_token("user1")
@@ -172,21 +210,23 @@ class TestLogoutEndpoint:
         app.dependency_overrides[get_current_user] = lambda: user_id
         return app
 
-    def test_logout_blacklists_token(self):
-        clear_blacklist()
-        uid = str(uuid.uuid4())
-        token = create_access_token(uid)
-        payload = decode_access_token(token)
-        jti = payload["jti"]
+    @pytest.mark.asyncio
+    async def test_logout_blacklists_token(self):
+        with patch("app.core.security.get_redis", return_value=_fake_redis):
+            await clear_blacklist()
+            uid = str(uuid.uuid4())
+            token = create_access_token(uid)
+            payload = decode_access_token(token)
+            jti = payload["jti"]
 
-        with patch("app.api.v1.endpoints.auth.rate_limit",
-                   side_effect=lambda **kw: (lambda: None)):
-            app = self._make_app_with_user(uid)
+            with patch("app.api.v1.endpoints.auth.rate_limit",
+                       side_effect=lambda **kw: (lambda: None)):
+                app = self._make_app_with_user(uid)
 
-        with TestClient(app) as c:
-            r = c.post("/auth/logout", headers={"Authorization": f"Bearer {token}"})
-        assert r.status_code == 204
-        assert is_token_blacklisted(jti) is True
+            with TestClient(app) as c:
+                r = c.post("/auth/logout", headers={"Authorization": f"Bearer {token}"})
+            assert r.status_code == 204
+            assert await is_token_blacklisted(jti) is True
 
     def test_logout_requires_auth(self):
         uid = str(uuid.uuid4())

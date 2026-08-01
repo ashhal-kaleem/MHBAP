@@ -64,6 +64,23 @@ desktop.ini
 docker/postgres_data/
 docker/redis_data/
 
+# Training logs and error outputs
+scripts/training_log*.txt
+scripts/training_err*.txt
+scripts/distcheck.txt
+
+# Temporary / debug root scripts
+check_saved_weights.py
+data_leakage_audit.py
+patch_writer.py
+test_emotion_quick.py
+
+# Versioned throwaway training scripts (keep run_training.py and run_training_clean.py only)
+scripts/run_training_v[0-9]*.py
+
+# Internal audit reports
+AUDIT_REPORT.md
+
 # Docs build
 site/
 docs/_build/
