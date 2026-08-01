@@ -6,8 +6,9 @@ GET /api/v1/evaluation/ablation    — run full ablation study
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 
+from app.api.dependencies import get_current_user
 from app.evaluation.benchmark import run_benchmark
 from app.evaluation.ablation import run_ablation, MODALITIES
 from app.schemas.evaluation import (
@@ -51,6 +52,7 @@ def _to_report_schema(report) -> EvaluationReportSchema:
 def benchmark(
     n_samples: int = Query(1000, ge=100, le=10000),
     seed: int = Query(42),
+    current_user_id: str = Depends(get_current_user),
 ):
     """Run per-modality + fusion benchmark and return metrics."""
     reports = run_benchmark(n_samples=n_samples, seed=seed)
@@ -65,6 +67,7 @@ def benchmark(
 def ablation(
     n_samples: int = Query(500, ge=100, le=5000),
     seed: int = Query(42),
+    current_user_id: str = Depends(get_current_user),
 ):
     """Run full modality ablation study."""
     study = run_ablation(n_samples=n_samples, seed=seed)

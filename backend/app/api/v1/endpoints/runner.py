@@ -31,8 +31,13 @@ import asyncio
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
+from app.api.dependencies import get_current_user
+from app.services import session_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -84,7 +89,11 @@ def _task_done_callback(session_id: str, task: asyncio.Task) -> None:
 # ── endpoints ──────────────────────────────────────────────────────────────
 
 @router.post("/session/{session_id}/start", response_model=RunnerStatus, status_code=202)
-async def start_runner(session_id: UUID) -> RunnerStatus:
+async def start_runner(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
+) -> RunnerStatus:
     """
     Launch a SessionRunner background task for ``session_id``.
 
@@ -94,6 +103,12 @@ async def start_runner(session_id: UUID) -> RunnerStatus:
     at 15 fps).
     """
     sid = str(session_id)
+
+    session = await session_service.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
 
     if sid in _active_runners and not _active_runners[sid].done():
         raise HTTPException(
@@ -110,7 +125,11 @@ async def start_runner(session_id: UUID) -> RunnerStatus:
 
 
 @router.post("/session/{session_id}/stop", response_model=RunnerStatus)
-async def stop_runner(session_id: UUID) -> RunnerStatus:
+async def stop_runner(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
+) -> RunnerStatus:
     """
     Signal the SessionRunner for ``session_id`` to stop cleanly.
 
@@ -119,6 +138,12 @@ async def stop_runner(session_id: UUID) -> RunnerStatus:
     Returns 404 if no runner is active.
     """
     sid = str(session_id)
+
+    session = await session_service.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
 
     runner = _runner_objects.get(sid)
     if runner is not None:
@@ -140,9 +165,20 @@ async def stop_runner(session_id: UUID) -> RunnerStatus:
 
 
 @router.get("/session/{session_id}/status", response_model=RunnerStatus)
-async def runner_status(session_id: UUID) -> RunnerStatus:
+async def runner_status(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
+) -> RunnerStatus:
     """Return whether a runner task is currently active for ``session_id``."""
     sid = str(session_id)
+
+    session = await session_service.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
+
     task = _active_runners.get(sid)
     running = task is not None and not task.done()
     return RunnerStatus(session_id=sid, running=running)

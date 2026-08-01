@@ -426,3 +426,142 @@ class TestWebSocketAuth:
                 with c.websocket_connect(f"/stream/demo?access_token={token}"):
                     pass
             assert exc.value.code == 1008
+
+# ── C-05 & C-06 Authentication and Authorization ───────────────────────────────────────────
+
+class TestResourceOwnership:
+    @pytest.fixture(autouse=True)
+    def patch_redis(self):
+        """Patch Redis so get_current_user's is_token_blacklisted doesn't hit real Redis."""
+        with patch("app.core.security.get_redis", return_value=_fake_redis):
+            yield
+
+    @pytest.fixture(autouse=True)
+    async def clear_redis(self, patch_redis):
+        _fake_redis.clear()
+        await clear_blacklist()
+        yield
+        _fake_redis.clear()
+
+    def _make_app(self) -> FastAPI:
+        from app.api.v1.endpoints.sessions import router as sessions_router
+        from app.api.v1.endpoints.predictions import router as predictions_router
+        from app.api.v1.endpoints.analytics import router as analytics_router
+        from app.api.v1.endpoints.runner import router as runner_router
+        from app.api.v1.endpoints.evaluation import router as evaluation_router
+        from app.api.dependencies import get_db
+
+        app = FastAPI()
+        app.include_router(sessions_router, prefix="/sessions")
+        app.include_router(predictions_router, prefix="/predictions")
+        app.include_router(analytics_router, prefix="/analytics")
+        app.include_router(runner_router, prefix="/runner")
+        app.include_router(evaluation_router, prefix="/evaluation")
+
+        async def _noop_db():
+            yield AsyncMock()
+
+        app.dependency_overrides[get_db] = _noop_db
+        return app
+
+    def _get_token(self, user_id: str) -> str:
+        return create_access_token(user_id)
+
+    def test_unauthenticated_request_rejected(self):
+        with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+            r = c.get(f"/sessions/user/{uuid.uuid4()}")
+        assert r.status_code == 401
+
+    def test_invalid_token_rejected(self):
+        with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+            r = c.get(f"/sessions/user/{uuid.uuid4()}", headers={"Authorization": "Bearer invalid"})
+        assert r.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_revoked_token_rejected(self):
+        token = self._get_token(str(uuid.uuid4()))
+        payload = decode_access_token(token)
+        await blacklist_token(payload["jti"], time.time() + 3600)
+
+        with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+            r = c.get(f"/sessions/user/{uuid.uuid4()}", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 401
+
+    def test_analytics_owner_access(self):
+        owner_id = str(uuid.uuid4())
+        token = self._get_token(owner_id)
+        with patch("app.services.analytics_service.get_user_analytics", new=AsyncMock(return_value={"test": "data"})):
+            with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+                r = c.get(f"/analytics/user/{owner_id}", headers={"Authorization": f"Bearer {token}"})
+            # Expected to pass auth, maybe fail validation because return_value is dict instead of UserAnalytics, but status shouldn't be 403 or 401
+            assert r.status_code not in (401, 403)
+
+    def test_analytics_non_owner_access(self):
+        owner_id = str(uuid.uuid4())
+        other_id = str(uuid.uuid4())
+        token = self._get_token(other_id)
+        with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+            r = c.get(f"/analytics/user/{owner_id}", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 403
+
+    def test_session_owner_access(self):
+        owner_id = str(uuid.uuid4())
+        session_id = str(uuid.uuid4())
+        token = self._get_token(owner_id)
+
+        mock_session = AsyncMock()
+        mock_session.user_id = uuid.UUID(owner_id)
+        
+        with patch("app.services.session_service.get_session", new=AsyncMock(return_value=mock_session)):
+            with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+                r = c.get(f"/sessions/{session_id}", headers={"Authorization": f"Bearer {token}"})
+            assert r.status_code not in (401, 403)
+
+    def test_session_non_owner_access(self):
+        owner_id = str(uuid.uuid4())
+        other_id = str(uuid.uuid4())
+        session_id = str(uuid.uuid4())
+        token = self._get_token(other_id)
+
+        mock_session = AsyncMock()
+        mock_session.user_id = uuid.UUID(owner_id)
+        
+        with patch("app.services.session_service.get_session", new=AsyncMock(return_value=mock_session)):
+            with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+                r = c.get(f"/sessions/{session_id}", headers={"Authorization": f"Bearer {token}"})
+            assert r.status_code == 403
+
+    def test_session_delete_non_owner(self):
+        owner_id = str(uuid.uuid4())
+        other_id = str(uuid.uuid4())
+        session_id = str(uuid.uuid4())
+        token = self._get_token(other_id)
+
+        mock_session = AsyncMock()
+        mock_session.user_id = uuid.UUID(owner_id)
+        
+        with patch("app.services.session_service.get_session", new=AsyncMock(return_value=mock_session)):
+            with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+                r = c.delete(f"/sessions/{session_id}", headers={"Authorization": f"Bearer {token}"})
+            assert r.status_code == 403
+
+    def test_runner_non_owner(self):
+        owner_id = str(uuid.uuid4())
+        other_id = str(uuid.uuid4())
+        session_id = str(uuid.uuid4())
+        token = self._get_token(other_id)
+
+        mock_session = AsyncMock()
+        mock_session.user_id = uuid.UUID(owner_id)
+        
+        with patch("app.services.session_service.get_session", new=AsyncMock(return_value=mock_session)):
+            with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+                r = c.post(f"/runner/session/{session_id}/start", headers={"Authorization": f"Bearer {token}"})
+            assert r.status_code == 403
+
+    def test_evaluation_authenticated(self):
+        token = self._get_token(str(uuid.uuid4()))
+        with patch("app.api.v1.endpoints.evaluation.run_benchmark", new=lambda **kw: []):
+            with TestClient(self._make_app(), raise_server_exceptions=False) as c:
+                r = c.get("/evaluation/benchmark", headers={"Authorization": f"Bearer {token}"})
+            assert r.status_code not in (401, 403)
