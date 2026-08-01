@@ -1,92 +1,109 @@
 """
-rate_limit.py — Simple in-process sliding-window rate limiter.
+rate_limit.py — Redis-backed sliding-window rate limiter.
 
-Designed to work without Redis for unit tests; swaps to Redis-backed
-counts in production when REDIS_URL is set.
-Uses a thread-safe in-memory fallback for dev/test environments.
+Designed to work with Redis for production readiness in a distributed setup.
 """
 from __future__ import annotations
 
 import time
-from collections import defaultdict, deque
-from threading import Lock
-from typing import Deque, Dict, Tuple
+import uuid
+from typing import Tuple
 
 from fastapi import Request, HTTPException, status
 
+from app.core.redis import get_redis
 
-# ── In-process store ─────────────────────────────────────────────────────────
-
-_store: Dict[str, Deque[float]] = defaultdict(deque)
-_lock = Lock()
-
-# ── Account lockout store ─────────────────────────────────────────────────────
-
-_failed_logins: Dict[str, Deque[float]] = defaultdict(deque)
-_lockout_lock = Lock()
+# ── Account lockout constants ──────────────────────────────────────────────────
 
 LOCKOUT_MAX_ATTEMPTS = 5        # failed attempts before lockout
 LOCKOUT_WINDOW_SECONDS = 300    # 5-minute sliding window
 LOCKOUT_DURATION_SECONDS = 900  # 15-minute lockout after threshold
 
 
-def record_failed_login(identifier: str) -> None:
+async def record_failed_login(identifier: str) -> None:
     """Record a failed login attempt for *identifier* (email or IP)."""
-    now = time.monotonic()
-    with _lockout_lock:
-        dq = _failed_logins[identifier]
-        dq.append(now)
+    now = time.time()
+    key = f"lockout:{identifier}"
+    redis = get_redis()
+    member = f"{now}:{uuid.uuid4()}"
+    pipe = redis.pipeline()
+    pipe.zadd(key, {member: now})
+    pipe.expire(key, LOCKOUT_WINDOW_SECONDS)
+    await pipe.execute()
 
 
-def clear_failed_logins(identifier: str) -> None:
+async def clear_failed_logins(identifier: str) -> None:
     """Clear failed-login history on successful authentication."""
-    with _lockout_lock:
-        _failed_logins[identifier].clear()
+    key = f"lockout:{identifier}"
+    redis = get_redis()
+    await redis.delete(key)
 
 
-def check_account_lockout(identifier: str) -> None:
+async def check_account_lockout(identifier: str) -> None:
     """Raise HTTP 429 if *identifier* is currently locked out."""
-    now = time.monotonic()
+    now = time.time()
     cutoff = now - LOCKOUT_WINDOW_SECONDS
-    with _lockout_lock:
-        dq = _failed_logins[identifier]
-        while dq and dq[0] < cutoff:
-            dq.popleft()
-        if len(dq) >= LOCKOUT_MAX_ATTEMPTS:
-            oldest = dq[0]
-            retry_after = int(LOCKOUT_WINDOW_SECONDS - (now - oldest)) + 1
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Account temporarily locked. Retry after {retry_after}s.",
-                headers={"Retry-After": str(retry_after)},
-            )
+    key = f"lockout:{identifier}"
+    redis = get_redis()
+    
+    pipe = redis.pipeline()
+    pipe.zremrangebyscore(key, 0, cutoff)
+    pipe.zcard(key)
+    pipe.zrange(key, 0, 0, withscores=True)
+    results = await pipe.execute()
+    
+    count = results[1]
+    if count >= LOCKOUT_MAX_ATTEMPTS:
+        oldest_records = results[2]
+        retry_after = LOCKOUT_WINDOW_SECONDS
+        if oldest_records:
+            _, oldest_time = oldest_records[0]
+            retry_after = int(LOCKOUT_WINDOW_SECONDS - (now - oldest_time)) + 1
+        if retry_after < 0:
+            retry_after = 0
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Account temporarily locked. Retry after {retry_after}s.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
 
-def _sliding_window_check(key: str, limit: int, window_seconds: int) -> Tuple[int, int]:
+async def _sliding_window_check(key: str, limit: int, window_seconds: int) -> Tuple[int, int]:
     """
-    Check the sliding window.
+    Check the sliding window in Redis.
     Returns (remaining_requests, retry_after_seconds).
     Raises HTTPException 429 if limit exceeded.
     """
-    now = time.monotonic()
+    now = time.time()
     cutoff = now - window_seconds
-
-    with _lock:
-        dq = _store[key]
-        # Drop entries outside the window
-        while dq and dq[0] < cutoff:
-            dq.popleft()
-        count = len(dq)
-        if count >= limit:
-            oldest = dq[0]
-            retry_after = int(oldest - cutoff) + 1
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded. Retry after {retry_after}s.",
-                headers={"Retry-After": str(retry_after)},
-            )
-        dq.append(now)
-        return limit - count - 1, 0
+    redis = get_redis()
+    
+    pipe = redis.pipeline()
+    pipe.zremrangebyscore(key, 0, cutoff)
+    pipe.zcard(key)
+    pipe.zrange(key, 0, 0, withscores=True)
+    results = await pipe.execute()
+    
+    count = results[1]
+    if count >= limit:
+        oldest_records = results[2]
+        retry_after = 1
+        if oldest_records:
+            _, oldest_time = oldest_records[0]
+            retry_after = int(oldest_time - cutoff) + 1
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded. Retry after {retry_after}s.",
+            headers={"Retry-After": str(retry_after)},
+        )
+        
+    member = f"{now}:{uuid.uuid4()}"
+    pipe = redis.pipeline()
+    pipe.zadd(key, {member: now})
+    pipe.expire(key, window_seconds)
+    await pipe.execute()
+    
+    return limit - count - 1, 0
 
 
 # ── Dependency factories ──────────────────────────────────────────────────────
@@ -94,16 +111,11 @@ def _sliding_window_check(key: str, limit: int, window_seconds: int) -> Tuple[in
 def rate_limit(limit: int = 60, window_seconds: int = 60):
     """
     FastAPI dependency: rate-limit by client IP.
-
-    Usage:
-        @router.get("/heavy")
-        async def heavy(request: Request, _=Depends(rate_limit(10, 60))):
-            ...
     """
-    def _dep(request: Request):
+    async def _dep(request: Request):
         ip = request.client.host if request.client else "unknown"
         key = f"rl:{ip}:{request.url.path}"
-        remaining, _ = _sliding_window_check(key, limit, window_seconds)
+        remaining, _ = await _sliding_window_check(key, limit, window_seconds)
         request.state.ratelimit_remaining = remaining
 
     return _dep
@@ -114,10 +126,10 @@ def rate_limit_user(limit: int = 120, window_seconds: int = 60):
     FastAPI dependency: rate-limit by authenticated user_id (falls back to IP).
     Must be placed after an auth dependency that sets request.state.user_id.
     """
-    def _dep(request: Request):
+    async def _dep(request: Request):
         user_id = getattr(request.state, "user_id", None)
         key_part = f"user:{user_id}" if user_id else f"ip:{request.client.host}"
         key = f"rl:{key_part}:{request.url.path}"
-        _sliding_window_check(key, limit, window_seconds)
+        await _sliding_window_check(key, limit, window_seconds)
 
     return _dep

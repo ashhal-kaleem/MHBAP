@@ -122,23 +122,23 @@ async def login(
 ):
     """Authenticate and return an access token. Locks the account after
     repeated failures to slow down credential-stuffing attacks."""
-    check_account_lockout(body.email)
+    await check_account_lockout(body.email)
 
     user = await get_user_by_email(db, body.email)
     if not user or not user.is_active:
-        record_failed_login(body.email)
+        await record_failed_login(body.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
     if not verify_password(body.password, user.hashed_password):
-        record_failed_login(body.email)
+        await record_failed_login(body.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
 
-    clear_failed_logins(body.email)
+    await clear_failed_logins(body.email)
     token = create_access_token(subject=str(user.id))
     return TokenResponse(access_token=token, user_id=str(user.id))
 

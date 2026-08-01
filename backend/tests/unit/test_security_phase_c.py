@@ -39,26 +39,7 @@ from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.content_size import ContentSizeLimitMiddleware
 
 
-class FakeRedis:
-    def __init__(self):
-        self.store = {}
-    async def set(self, key, value, ex=None):
-        self.store[key] = (value, time.time() + (ex or 0))
-    async def exists(self, key):
-        if key in self.store:
-            val, exp = self.store[key]
-            if exp >= time.time():
-                return 1
-            else:
-                del self.store[key]
-        return 0
-    async def keys(self, pattern):
-        # Only handling blacklist:* pattern for tests
-        prefix = pattern.replace('*', '')
-        return [k for k in self.store.keys() if k.startswith(prefix)]
-    async def delete(self, *keys):
-        for k in keys:
-            self.store.pop(k, None)
+from tests.unit.fake_redis import FakeRedis
 
 _fake_redis = FakeRedis()
 
@@ -168,25 +149,35 @@ class TestPasswordStrength:
 # ── Account lockout ───────────────────────────────────────────────────────────
 
 class TestAccountLockout:
-    def setup_method(self):
-        clear_failed_logins("test@example.com")
+    @pytest.fixture(autouse=True)
+    def patch_redis(self):
+        with patch("app.core.rate_limit.get_redis", return_value=_fake_redis):
+            yield
 
-    def test_no_lockout_initially(self):
-        check_account_lockout("test@example.com")  # should not raise
+    @pytest.fixture(autouse=True)
+    async def setup_test(self):
+        _fake_redis.clear()
+        await clear_failed_logins("test@example.com")
 
-    def test_lockout_after_max_attempts(self):
+    @pytest.mark.asyncio
+    async def test_no_lockout_initially(self):
+        await check_account_lockout("test@example.com")  # should not raise
+
+    @pytest.mark.asyncio
+    async def test_lockout_after_max_attempts(self):
         from fastapi import HTTPException
         for _ in range(LOCKOUT_MAX_ATTEMPTS):
-            record_failed_login("test@example.com")
+            await record_failed_login("test@example.com")
         with pytest.raises(HTTPException) as exc_info:
-            check_account_lockout("test@example.com")
+            await check_account_lockout("test@example.com")
         assert exc_info.value.status_code == 429
 
-    def test_clear_resets_lockout(self):
+    @pytest.mark.asyncio
+    async def test_clear_resets_lockout(self):
         for _ in range(LOCKOUT_MAX_ATTEMPTS):
-            record_failed_login("test@example.com")
-        clear_failed_logins("test@example.com")
-        check_account_lockout("test@example.com")  # should not raise
+            await record_failed_login("test@example.com")
+        await clear_failed_logins("test@example.com")
+        await check_account_lockout("test@example.com")  # should not raise
 
 
 # ── Logout endpoint ────────────────────────────────────────────────────────────

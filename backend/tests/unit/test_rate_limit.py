@@ -2,45 +2,58 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import patch
 from fastapi import FastAPI, Depends
 from fastapi.testclient import TestClient
 
-from app.core.rate_limit import _sliding_window_check, _store, rate_limit
+from app.core.rate_limit import _sliding_window_check, rate_limit
+from tests.unit.fake_redis import FakeRedis
 
+_fake_redis = FakeRedis()
+
+@pytest.fixture(autouse=True)
+def patch_redis():
+    with patch("app.core.rate_limit.get_redis", return_value=_fake_redis):
+        yield
 
 def _clear_store():
-    _store.clear()
+    _fake_redis.clear()
 
 
 # ── _sliding_window_check ─────────────────────────────────────────────────────
 
 class TestSlidingWindowCheck:
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_test(self):
         _clear_store()
 
-    def test_allows_under_limit(self):
-        remaining, _ = _sliding_window_check("k1", limit=5, window_seconds=60)
+    @pytest.mark.asyncio
+    async def test_allows_under_limit(self):
+        remaining, _ = await _sliding_window_check("k1", limit=5, window_seconds=60)
         assert remaining == 4
 
-    def test_counts_requests(self):
+    @pytest.mark.asyncio
+    async def test_counts_requests(self):
         for _ in range(3):
-            _sliding_window_check("k2", limit=5, window_seconds=60)
-        remaining, _ = _sliding_window_check("k2", limit=5, window_seconds=60)
+            await _sliding_window_check("k2", limit=5, window_seconds=60)
+        remaining, _ = await _sliding_window_check("k2", limit=5, window_seconds=60)
         assert remaining == 1
 
-    def test_raises_429_at_limit(self):
+    @pytest.mark.asyncio
+    async def test_raises_429_at_limit(self):
         from fastapi import HTTPException
         for _ in range(5):
-            _sliding_window_check("k3", limit=5, window_seconds=60)
+            await _sliding_window_check("k3", limit=5, window_seconds=60)
         with pytest.raises(HTTPException) as exc_info:
-            _sliding_window_check("k3", limit=5, window_seconds=60)
+            await _sliding_window_check("k3", limit=5, window_seconds=60)
         assert exc_info.value.status_code == 429
 
-    def test_different_keys_independent(self):
+    @pytest.mark.asyncio
+    async def test_different_keys_independent(self):
         for _ in range(5):
-            _sliding_window_check("ka", limit=5, window_seconds=60)
+            await _sliding_window_check("ka", limit=5, window_seconds=60)
         # Different key should still be allowed
-        remaining, _ = _sliding_window_check("kb", limit=5, window_seconds=60)
+        remaining, _ = await _sliding_window_check("kb", limit=5, window_seconds=60)
         assert remaining == 4
 
 
@@ -57,7 +70,8 @@ def _make_app(limit: int = 3):
 
 
 class TestRateLimitDependency:
-    def setup_method(self):
+    @pytest.fixture(autouse=True)
+    def setup_test(self):
         _clear_store()
 
     def test_allows_up_to_limit(self):
