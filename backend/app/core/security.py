@@ -12,12 +12,14 @@ import hmac
 import json
 import time
 import base64
+import uuid as _uuid
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Any, Dict, Optional, Tuple
 
 from passlib.context import CryptContext
 
-from backend.app.core.config import settings
+from app.core.config import settings
 
 
 # ── Password hashing ──────────────────────────────────────────────────────────
@@ -60,6 +62,7 @@ def create_access_token(
         "sub": subject,
         "iat": int(now.timestamp()),
         "exp": int(expire.timestamp()),
+        "jti": str(_uuid.uuid4()),
         **(extra_claims or {}),
     }
     header = _b64url(json.dumps({"alg": ALGORITHM, "typ": "JWT"}).encode())
@@ -97,3 +100,36 @@ def decode_access_token(token: str) -> Dict[str, Any]:
     if payload.get("exp", 0) < time.time():
         raise ValueError("Token expired")
     return payload
+
+
+# ── Token blacklist (logout / refresh rotation) ───────────────────────────────
+#
+# Redis SET with TTL is used to efficiently manage blacklisted tokens across
+# multiple workers in production.
+
+from app.core.redis import get_redis
+
+async def blacklist_token(jti: str, exp: float) -> None:
+    """Mark a token's *jti* as revoked until it would have expired anyway."""
+    if not jti:
+        return
+    ttl = max(int(exp - time.time()), 1)
+    client = get_redis()
+    await client.set(f"blacklist:{jti}", "1", ex=ttl)
+
+
+async def is_token_blacklisted(jti: Optional[str]) -> bool:
+    """Check whether *jti* has been revoked."""
+    if not jti:
+        return False
+    client = get_redis()
+    exists = await client.exists(f"blacklist:{jti}")
+    return bool(exists)
+
+
+async def clear_blacklist() -> None:
+    """Test helper: wipe the blacklist store."""
+    client = get_redis()
+    keys = await client.keys("blacklist:*")
+    if keys:
+        await client.delete(*keys)

@@ -37,6 +37,8 @@ dependencies = [
     "loguru>=0.7.2",
     "rich>=13.7.0",
     "typer>=0.12.0",
+    # Numeric — required by app.evaluation (imported at module load time)
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]
@@ -60,7 +62,7 @@ ml = [
     "shap>=0.45.0",
     "grad-cam>=1.5.0",
     # Data science
-    "numpy>=1.26.0",
+    # numpy moved to project.dependencies (required by backend at runtime)
     "pandas>=2.2.0",
     "scikit-learn>=1.5.0",
     "scipy>=1.13.0",
@@ -107,4 +109,4 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["backend/tests", "ml/tests"]
-addopts = "-v --cov=backend --cov=ml --cov-report=term-missing"
+addopts = "-v --cov=backend --cov=ml --cov-report=term-missing --cov-data-file=.coverage"

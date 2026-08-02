@@ -21,8 +21,8 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.app.main import app
-from backend.app.api.v1.endpoints.stream import (
+from app.main import app
+from app.api.v1.endpoints.stream import (
     _make_demo_prediction,
     _softmax,
     _client_counts,
@@ -129,7 +129,7 @@ class TestDemoPhase9:
 
 class TestConnectionCap:
     def test_cap_counter_increments_and_decrements(self, client: TestClient):
-        from backend.app.core.stream_bus import publish
+        from app.core.stream_bus import publish
         import threading, time
 
         sid = "cap-test-session-0001"
@@ -161,8 +161,8 @@ class TestConnectionCap:
 class TestRedisStreamBusFallback:
     def test_publish_falls_back_to_inprocess_when_redis_unavailable(self):
         """When Redis is unavailable the bus should publish to in-process bus."""
-        import backend.app.core.redis_stream_bus as bus_mod
-        import backend.app.core.stream_bus as inproc
+        import app.core.redis_stream_bus as bus_mod
+        import app.core.stream_bus as inproc
 
         received = []
 

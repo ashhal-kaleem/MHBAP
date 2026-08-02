@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 
-from backend.app.schemas.prediction import PredictionCreate
-from backend.app.services import prediction_service
+from app.schemas.prediction import PredictionCreate
+from app.services import prediction_service
 
 
 def _sample_prediction_data(**overrides) -> PredictionCreate:

@@ -4,7 +4,7 @@ Provides structured JSON logs in production, coloured console in dev.
 """
 import sys
 from loguru import logger
-from backend.app.core.config import settings
+from app.core.config import settings
 
 
 def setup_logging() -> None:

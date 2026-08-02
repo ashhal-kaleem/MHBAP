@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.app.schemas.analytics import (
+from app.schemas.analytics import (
     EmotionBreakdown,
     MetricTimeSeries,
     MetricTimePoint,
@@ -113,7 +113,7 @@ class TestAnalyticsServiceEmpty:
     def test_empty_user_returns_zero_sessions(self):
         """get_user_analytics returns session_count=0 when no sessions exist."""
         import asyncio
-        from backend.app.services.analytics_service import get_user_analytics
+        from app.services.analytics_service import get_user_analytics
 
         uid = uuid.uuid4()
 
@@ -141,7 +141,7 @@ class TestAnalyticsEndpoint:
     def test_analytics_endpoint_exists(self):
         """Analytics router is mounted and returns 200 or 422 (not 404)."""
         from fastapi.testclient import TestClient
-        from backend.app.main import app
+        from app.main import app
 
         uid = uuid.uuid4()
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -151,7 +151,7 @@ class TestAnalyticsEndpoint:
 
     def test_analytics_export_csv_endpoint_exists(self):
         from fastapi.testclient import TestClient
-        from backend.app.main import app
+        from app.main import app
 
         uid = uuid.uuid4()
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -160,7 +160,7 @@ class TestAnalyticsEndpoint:
 
     def test_session_export_json_endpoint_exists(self):
         from fastapi.testclient import TestClient
-        from backend.app.main import app
+        from app.main import app
 
         sid = uuid.uuid4()
         with TestClient(app, raise_server_exceptions=False) as client:

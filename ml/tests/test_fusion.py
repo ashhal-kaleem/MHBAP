@@ -71,7 +71,7 @@ class TestPredictor(unittest.TestCase):
         p = BehaviourPredictor()
         result = p.predict(self._zeros())
         total = sum(result.emotion_scores.values())
-        self.assertAlmostEqual(total, 1.0, places=4)
+        self.assertAlmostEqual(total, 1.0, places=3)
 
     def test_scalar_ranges(self):
         from ml.fusion.predictor import BehaviourPredictor

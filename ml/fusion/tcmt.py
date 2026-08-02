@@ -5,7 +5,7 @@ Architecture
 ------------
 Input : (B, T, 58) float32  — B=batch, T=time steps, 58 feature dims
 Output: dict of 5 head tensors:
-  emotion_logits : (B, 8)   — 8-class softmax
+  emotion_logits : (B, 4)   — 4-class: 0=neutral,1=happy,2=sad,3=angry
   stress         : (B, 1)   — sigmoid → [0, 10] scaled
   engagement     : (B, 1)   — sigmoid → [0, 1]
   attention      : (B, 1)   — sigmoid → [0, 1]
@@ -13,14 +13,13 @@ Output: dict of 5 head tensors:
 
 Design choices for research-grade MITACS presentation
 ------------------------------------------------------
-1. Per-modality linear projections before shared transformer —
+1. Per-modality linear projections with LayerNorm before shared transformer —
    lets the model learn modality-specific embeddings.
 2. Learnable modality-type embeddings added at input —
    explicit cross-modal positional signal.
-3. Single shared TransformerEncoder (4 heads, 2 layers, d_model=64) —
-   lightweight enough to run real-time on CPU.
+3. Shared TransformerEncoder (4 heads, 3 layers, d_model=128, dim_feedforward=256).
 4. CLS token aggregation for temporal summary.
-5. Separate prediction heads per behavioural target.
+5. Separate prediction heads per behavioural target (2-layer MLP for emotion).
 """
 from __future__ import annotations
 import math
@@ -43,19 +42,20 @@ for _m, _ks in MODALITY_KEYS.items():
     _MOD_SLICES[_m] = (_off, _off + len(_ks))
     _off += len(_ks)
 
-D_MODEL  = 64
+D_MODEL  = 128
 N_HEADS  = 4
-N_LAYERS = 2
-EMOTION_CLASSES = 8
+N_LAYERS = 3
+FFN_DIM  = 256
+EMOTION_CLASSES = 4   # 0=neutral, 1=happy, 2=sad, 3=angry
 
 
 if _TORCH_AVAILABLE:
     class _ModalityProjection(nn.Module):
-        """Project each modality slice to D_MODEL with its own linear layer."""
+        """Project each modality slice to D_MODEL with Linear + LayerNorm."""
         def __init__(self) -> None:
             super().__init__()
             self.projs = nn.ModuleDict({
-                mod: nn.Linear(end - start, D_MODEL)
+                mod: nn.Sequential(nn.Linear(end - start, D_MODEL), nn.LayerNorm(D_MODEL))
                 for mod, (start, end) in _MOD_SLICES.items()
             })
             # Learnable modality-type embedding
@@ -86,14 +86,17 @@ if _TORCH_AVAILABLE:
             self.mod_proj = _ModalityProjection()
             enc_layer = nn.TransformerEncoderLayer(
                 d_model=D_MODEL, nhead=N_HEADS,
-                dim_feedforward=128, dropout=0.1,
+                dim_feedforward=FFN_DIM, dropout=0.15,
                 batch_first=True, norm_first=True,
             )
             self.encoder = nn.TransformerEncoder(enc_layer, num_layers=N_LAYERS)
             self.cls_token = nn.Parameter(torch.zeros(1, 1, D_MODEL))
 
             # Output heads
-            self.head_emotion    = nn.Linear(D_MODEL, EMOTION_CLASSES)
+            self.head_emotion = nn.Sequential(
+                nn.Linear(D_MODEL, D_MODEL // 2), nn.GELU(),
+                nn.Dropout(0.15), nn.Linear(D_MODEL // 2, EMOTION_CLASSES),
+            )
             self.head_stress     = nn.Linear(D_MODEL, 1)
             self.head_engagement = nn.Linear(D_MODEL, 1)
             self.head_attention  = nn.Linear(D_MODEL, 1)

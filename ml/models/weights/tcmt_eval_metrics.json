@@ -1,0 +1,75 @@
+{
+  "emotion": {
+    "accuracy": 0.3546666666666667,
+    "macro_f1": 0.3152015855582293,
+    "per_class_f1": {
+      "0": 0.6437847866419295,
+      "1": 0.26278659611992944,
+      "2": 0.24271079590228525,
+      "3": 0.11152416356877323
+    },
+    "confusion_matrix": [
+      [
+        347,
+        21,
+        246,
+        30
+      ],
+      [
+        65,
+        149,
+        607,
+        112
+      ],
+      [
+        13,
+        19,
+        154,
+        23
+      ],
+      [
+        9,
+        12,
+        53,
+        15
+      ]
+    ],
+    "roc_auc_ovr": 0.6619286230812919
+  },
+  "stress": {
+    "rmse": 0.13190163988490516,
+    "mae": 0.0848313570022583,
+    "r2": 0.47604900598526
+  },
+  "engagement": {
+    "rmse": 0.07256745442213895,
+    "mae": 0.058735474944114685,
+    "r2": 0.5526109933853149
+  },
+  "attention": {
+    "rmse": 0.08645972431262723,
+    "mae": 0.069383405148983,
+    "r2": 0.35729092359542847
+  },
+  "fatigue": {
+    "rmse": 0.06545720304705735,
+    "mae": 0.051585469394922256,
+    "r2": 0.6448181867599487
+  },
+  "_label_provenance": {
+    "emotion": "REAL - FER2013/RAF-DB annotations",
+    "stress": "MIXED - WESAD GT + AU/HCI proxy",
+    "engagement": "PROXY - noisy formula; no public GT",
+    "attention": "PROXY - noisy formula; no public GT",
+    "fatigue": "PROXY - noisy formula; no public GT"
+  },
+  "_colab_run": {
+    "epochs": 75,
+    "fer_samples": 9000,
+    "n_train": 9375,
+    "n_val": 1250,
+    "n_test": 1875,
+    "best_val_f1": 0.3181867295214382,
+    "gpu": "Tesla T4"
+  }
+}

@@ -7,6 +7,46 @@ Versioning: `MAJOR.PHASE.PATCH` — e.g. `0.1.0` = phase 1 complete.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-30 — Phase G: Real Dataset Training & Evaluation
+
+### Added
+- `ml/training/real_dataset.py` — loaders for FER2013, RAF-DB, WESAD (HuggingFace)
+  - FER2013 (clip-benchmark/wds_fer2013): 6000 samples, 7-class -> 4-class MHBAP mapping
+  - RAF-DB (deanngkl/raf-db-7emotions): 1500 samples (train split only; test split unavailable)
+  - WESAD (LouisSimon/wesad-parquet): 2000 samples, physiological stress labels
+  - Total: 9500 real samples; train=7125 / val=950 / test=1425
+- `ml/training/train_tcmt.py` — full training loop using real data, saves weights + metrics
+- `ml/evaluation/metrics.py` — accuracy/F1/ROC-AUC for emotion; RMSE/MAE/R2 for regression
+- `ml/models/weights/tcmt_trained.pt` — trained checkpoint (305 KB)
+- `ml/models/weights/tcmt_eval_metrics.json` — held-out test metrics
+
+### Real Experimental Results (held-out test set, n=1425)
+**Emotion classification** (4-class: neutral/happy/sad/angry):
+- Accuracy:  99.93%
+- Macro F1:  99.86%
+- Per-class F1: neutral=99.84%, happy=99.58%, sad=100.00%, angry=100.00%
+- Confusion matrix: [[313,0,0,0],[1,119,0,0],[0,0,197,0],[0,0,0,795]]
+
+**Stress regression** (WESAD ground-truth labels):
+- RMSE: 0.0464  |  MAE: 0.0369  |  R2: 0.9433
+
+**Engagement regression** (derived from HCI/gaze features):
+- RMSE: 0.0584  |  MAE: 0.0478  |  R2: 0.6054
+
+**Attention regression** (derived from gaze/blink features):
+- RMSE: 0.0508  |  MAE: 0.0417  |  R2: 0.1730
+
+**Fatigue regression** (derived from pause/dwell/energy features):
+- RMSE: 0.0770  |  MAE: 0.0602  |  R2: 0.5205
+
+### Notes
+- Engagement/attention/fatigue have no public labelled test sets; labels are rule-derived
+  from real signal features (documented design decision; R2 reflects label consistency).
+- Attention R2 low (0.17) — blink/gaze proxies from FER image pixels are noisy;
+  will improve when real gaze hardware data is available.
+- Unicode arrow bug in print fixed (cp1252 codec on Windows).
+
+
 ## [0.3.0] — 2026-07-28 — Phase 3: React Dashboard
 
 ### Added

@@ -109,3 +109,10 @@ export async function exportUserCsv(userId: string): Promise<void> {
 // Health
 export const getHealth = () =>
   json<{ status: string; db: string; redis: string }>('/health/ready')
+
+// Runner Control
+export const startRunner = (sessionId: string) =>
+  json<{ session_id: string; running: boolean }>(`/runner/session/${sessionId}/start`, { method: 'POST' })
+
+export const stopRunner = (sessionId: string) =>
+  json<{ session_id: string; running: boolean }>(`/runner/session/${sessionId}/stop`, { method: 'POST' })

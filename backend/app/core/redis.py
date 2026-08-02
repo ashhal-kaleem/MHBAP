@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import redis.asyncio as redis
 
-from backend.app.core.config import settings
+from app.core.config import settings
 
 _pool: redis.ConnectionPool | None = None
 _client: redis.Redis | None = None

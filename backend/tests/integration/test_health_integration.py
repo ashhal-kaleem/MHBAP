@@ -9,8 +9,8 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from backend.app.db.session import check_db_connection
-from backend.app.main import app
+from app.db.session import check_db_connection
+from app.main import app
 
 
 async def _db_available() -> bool:

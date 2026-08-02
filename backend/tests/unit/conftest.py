@@ -6,8 +6,8 @@ import os
 import pytest
 from httpx import AsyncClient, ASGITransport
 
-from backend.app.core.config import settings
-from backend.app.main import app
+from app.core.config import settings
+from app.main import app
 
 # Short WS queue timeout so session-stream tests don't stall for 60 s
 os.environ.setdefault("MHBAP_WS_RECV_TIMEOUT", "2")

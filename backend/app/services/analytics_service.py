@@ -16,9 +16,9 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.models.prediction import Prediction
-from backend.app.db.models.session_model import Session
-from backend.app.schemas.analytics import (
+from app.db.models.prediction import Prediction
+from app.db.models.session_model import Session
+from app.schemas.analytics import (
     EmotionBreakdown,
     MetricTimeSeries,
     MetricTimePoint,

@@ -69,7 +69,7 @@ class TestXAIServiceFunction:
 
     @pytest.mark.asyncio
     async def test_returns_none_when_no_predictions(self):
-        from backend.app.services.prediction_service import get_xai_summary
+        from app.services.prediction_service import get_xai_summary
 
         db = AsyncMock()
         # list_predictions_for_session internally does db.execute
@@ -82,7 +82,7 @@ class TestXAIServiceFunction:
 
     @pytest.mark.asyncio
     async def test_summary_with_flat_weights(self):
-        from backend.app.services.prediction_service import get_xai_summary
+        from app.services.prediction_service import get_xai_summary
 
         session_id = uuid4()
         t = datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc)
@@ -105,7 +105,7 @@ class TestXAIServiceFunction:
 
     @pytest.mark.asyncio
     async def test_summary_dominant_modality_correct(self):
-        from backend.app.services.prediction_service import get_xai_summary
+        from app.services.prediction_service import get_xai_summary
 
         session_id = uuid4()
         t = datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc)

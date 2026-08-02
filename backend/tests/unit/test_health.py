@@ -5,7 +5,7 @@ These run without any external services (no DB, no Redis).
 import pytest
 from httpx import AsyncClient, ASGITransport
 
-from backend.app.main import app
+from app.main import app
 
 
 @pytest.mark.asyncio

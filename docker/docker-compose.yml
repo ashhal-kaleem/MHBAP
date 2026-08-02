@@ -7,7 +7,7 @@ services:
     container_name: mhbap_db
     environment:
       POSTGRES_USER: mhbap
-      POSTGRES_PASSWORD: mhbap
+      POSTGRES_PASSWORD: mhbap2625
       POSTGRES_DB: mhbap
     ports:
       - "5432:5432"
@@ -37,9 +37,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://mhbap:mhbap@db:5432/mhbap
-      - DATABASE_SYNC_URL=postgresql://mhbap:mhbap@db:5432/mhbap
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - DATABASE_SYNC_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL= redis://redis:6379/0
       - APP_ENV=production
     depends_on:
       db:

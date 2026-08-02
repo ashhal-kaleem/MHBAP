@@ -12,9 +12,9 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.models.prediction import Prediction
-from backend.app.db.models.session_model import Session
-from backend.app.schemas.session import SessionCreate, SessionContextUpdate, SessionStats, SessionUpdate
+from app.db.models.prediction import Prediction
+from app.db.models.session_model import Session
+from app.schemas.session import SessionCreate, SessionContextUpdate, SessionStats, SessionUpdate
 
 
 async def create_session(db: AsyncSession, data: SessionCreate) -> Session:

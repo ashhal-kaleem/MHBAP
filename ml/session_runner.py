@@ -34,7 +34,7 @@ from ml.data_writer import DataWriter
 from ml.fusion.predictor import BehaviourPredictor, PredictionResult
 from ml.xai.shap_explainer import SHAPExplainer
 from ml.xai.nl_explainer import generate_explanation
-from backend.app.core.stream_bus import publish as _bus_publish
+from app.core.redis_stream_bus import publish as _bus_publish
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,11 @@ class SessionRunner:
         """Signal run_until_stopped() to exit cleanly."""
         self._stop.set()
 
+    @property
+    def running(self) -> bool:
+        """Whether the runner is currently active."""
+        return not self._stop.is_set()
+
     # ------------------------------------------------------------------
     async def run_until_stopped(self) -> None:
         interval = 1.0 / self._fps
@@ -111,7 +116,8 @@ class SessionRunner:
         voice_feats = self._voice.process(audio_chunk)
 
         # HCI (drain event buffer)
-        hci_events  = self._hci.get_events()
+        mouse_events, key_events = self._hci.drain()
+        hci_events = (mouse_events, key_events)
         hci_feats   = self._hci_pipe.process(hci_events)
 
         # Fuse + predict + explain
@@ -119,7 +125,7 @@ class SessionRunner:
             "face": face_feats, "gaze": gaze_feats, "pose": pose_feats,
             "voice": voice_feats, "hci": hci_feats,
         }
-        prediction = self._predictor.predict(feature_dicts)
+        prediction = self._predictor.predict(feature_dicts, bgr_frame=frame)
         if prediction.feature_vector is not None:
             shap = self._explainer.explain(prediction.feature_vector)
             self.latest_shap = shap.get("stress", {})
@@ -130,7 +136,7 @@ class SessionRunner:
 
         # Push to any connected WebSocket clients
         now_iso = datetime.now(timezone.utc).isoformat()
-        _bus_publish(str(self.session_id), {
+        await _bus_publish(str(self.session_id), {
             "type": "prediction",
             "payload": {
                 "id": str(_uuid_mod.uuid4()),

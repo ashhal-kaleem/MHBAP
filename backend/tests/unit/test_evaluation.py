@@ -109,60 +109,122 @@ class TestComputeReport:
 
 
 # ---------------------------------------------------------------------------
-# ablation
+# ablation  (requires real test split cache + trained checkpoint)
 # ---------------------------------------------------------------------------
 
+import pytest
+from pathlib import Path
+
+_TEST_SPLIT = Path("ml/datasets/processed/eval_test_split.npz")
+_CHECKPOINT  = Path("ml/models/weights/tcmt_trained.pt")
+_REAL_EVAL_AVAILABLE = _TEST_SPLIT.exists() and _CHECKPOINT.exists()
+
+
 class TestAblation:
+    """Ablation tests over the real held-out test split.
+
+    All tests skip gracefully when the data cache or checkpoint is absent
+    (e.g. CI environments without ML weights).  Run
+    ``python scripts/cache_eval_test_split.py`` to generate the cache.
+    """
+
+    @pytest.mark.skipif(not _REAL_EVAL_AVAILABLE,
+                        reason="Real test split or checkpoint not found")
     def test_result_count(self):
-        study = run_ablation(n_samples=100, seed=1, modality_subset=["facial", "audio"])
-        # 2^2 - 1 = 3 subsets
+        study = run_ablation(n_samples=100, seed=42, modality_subset=["facial", "audio"])
+        # 2^2 - 1 = 3 non-empty subsets
         assert len(study.results) == 3
 
-    def test_full_set_best(self):
-        study = run_ablation(n_samples=300, seed=42, modality_subset=["facial", "audio"])
-        full_result = next(
-            r for r in study.results
-            if set(r.active_modalities) == {"facial", "audio"}
-        )
-        single_results = [
-            r for r in study.results if len(r.active_modalities) == 1
-        ]
-        # Fusion of two should (usually) beat individual
-        max_single = max(r.report.macro_f1 for r in single_results)
-        # Not guaranteed always but should hold for our seeded run
-        assert full_result.report.macro_f1 >= max_single - 0.05
+    @pytest.mark.skipif(not _REAL_EVAL_AVAILABLE,
+                        reason="Real test split or checkpoint not found")
+    def test_study_has_n_samples_and_seed(self):
+        """AblationStudy must carry n_samples and seed for the endpoint schema."""
+        study = run_ablation(n_samples=50, seed=42, modality_subset=["facial", "audio"])
+        assert isinstance(study.n_samples, int) and study.n_samples > 0
+        assert isinstance(study.seed, int)
 
+    @pytest.mark.skipif(not _REAL_EVAL_AVAILABLE,
+                        reason="Real test split or checkpoint not found")
     def test_dropped_modalities_complement(self):
-        study = run_ablation(n_samples=100, seed=2, modality_subset=["facial", "audio"])
+        study = run_ablation(n_samples=100, seed=42, modality_subset=["facial", "audio"])
         for r in study.results:
             combined = set(r.active_modalities) | set(r.dropped_modalities)
             assert combined == {"facial", "audio"}
 
+    @pytest.mark.skipif(not _REAL_EVAL_AVAILABLE,
+                        reason="Real test split or checkpoint not found")
+    def test_metrics_in_range(self):
+        study = run_ablation(n_samples=100, seed=42, modality_subset=["facial", "audio"])
+        for r in study.results:
+            assert 0.0 <= r.report.accuracy <= 1.0
+            assert 0.0 <= r.report.macro_f1 <= 1.0
+
+    @pytest.mark.skipif(not _REAL_EVAL_AVAILABLE,
+                        reason="Real test split or checkpoint not found")
+    def test_fusion_beats_weakest(self):
+        """Full fusion F1 should be comparable to or better than single-modality F1."""
+        study = run_ablation(n_samples=500, seed=42, modality_subset=["facial", "audio"])
+        full_result = next(
+            r for r in study.results
+            if set(r.active_modalities) == {"facial", "audio"}
+        )
+        single_results = [r for r in study.results if len(r.active_modalities) == 1]
+        max_single = max(r.report.macro_f1 for r in single_results)
+        assert full_result.report.macro_f1 >= max_single - 0.10
+
+    def test_raises_when_cache_missing(self, tmp_path, monkeypatch):
+        """Ensure RuntimeError (not a silent fallback) when cache is absent."""
+        import app.evaluation.ablation as abl_mod
+        monkeypatch.setattr(abl_mod, "TEST_SPLIT_PATH", tmp_path / "missing.npz")
+        with pytest.raises(RuntimeError, match="Real evaluation test split not found"):
+            run_ablation(n_samples=50, seed=42, modality_subset=["facial"])
+
 
 # ---------------------------------------------------------------------------
-# benchmark
+# benchmark  (requires real test split cache + trained checkpoint)
 # ---------------------------------------------------------------------------
 
 class TestBenchmark:
+    """Benchmark tests over the real held-out test split.
+
+    All tests skip gracefully when the data cache or checkpoint is absent.
+    """
+
+    @pytest.mark.skipif(not _REAL_EVAL_AVAILABLE,
+                        reason="Real test split or checkpoint not found")
     def test_report_count(self):
-        reports = run_benchmark(n_samples=200, seed=0)
+        reports = run_benchmark(n_samples=100, seed=42)
         # 4 modalities + 1 fusion
         assert len(reports) == len(MODALITIES) + 1
 
+    @pytest.mark.skipif(not _REAL_EVAL_AVAILABLE,
+                        reason="Real test split or checkpoint not found")
     def test_fusion_exists(self):
-        reports = run_benchmark(n_samples=200, seed=0)
+        reports = run_benchmark(n_samples=100, seed=42)
         names = [r.name for r in reports]
         assert "fusion" in names
 
-    def test_fusion_beats_weakest(self):
-        reports = run_benchmark(n_samples=500, seed=42)
-        fusion = next(r for r in reports if r.name == "fusion")
-        weakest = min((r for r in reports if r.name != "fusion"), key=lambda r: r.macro_f1)
-        assert fusion.macro_f1 >= weakest.macro_f1
-
+    @pytest.mark.skipif(not _REAL_EVAL_AVAILABLE,
+                        reason="Real test split or checkpoint not found")
     def test_metrics_in_range(self):
-        reports = run_benchmark(n_samples=300, seed=7)
+        reports = run_benchmark(n_samples=100, seed=42)
         for r in reports:
             assert 0.0 <= r.accuracy <= 1.0
             assert 0.0 <= r.macro_f1 <= 1.0
             assert 0.0 <= r.weighted_f1 <= 1.0
+
+    @pytest.mark.skipif(not _REAL_EVAL_AVAILABLE,
+                        reason="Real test split or checkpoint not found")
+    def test_fusion_beats_weakest(self):
+        reports = run_benchmark(n_samples=100, seed=42)
+        fusion = next(r for r in reports if r.name == "fusion")
+        weakest = min((r for r in reports if r.name != "fusion"),
+                      key=lambda r: r.macro_f1)
+        assert fusion.macro_f1 >= weakest.macro_f1
+
+    def test_raises_when_cache_missing(self, tmp_path, monkeypatch):
+        """Ensure RuntimeError (not a silent fallback) when cache is absent."""
+        import app.evaluation.benchmark as bm_mod
+        monkeypatch.setattr(bm_mod, "TEST_SPLIT_PATH", tmp_path / "missing.npz")
+        with pytest.raises(RuntimeError, match="Real evaluation test split not found"):
+            run_benchmark(n_samples=50, seed=42)

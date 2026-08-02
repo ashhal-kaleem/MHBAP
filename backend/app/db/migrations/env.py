@@ -12,12 +12,12 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# Make `backend.app...` importable when alembic runs with cwd=backend
+# Make `app...` importable when alembic runs with cwd=backend
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from backend.app.core.config import settings  # noqa: E402
-from backend.app.db.base import Base  # noqa: E402
-from backend.app.db.models import *  # noqa: E402,F401,F403  (registers models on Base.metadata)
+from app.core.config import settings  # noqa: E402
+from app.db.base import Base  # noqa: E402
+from app.db.models import *  # noqa: E402,F401,F403  (registers models on Base.metadata)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_SYNC_URL)

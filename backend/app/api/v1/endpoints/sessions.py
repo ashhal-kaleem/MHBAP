@@ -15,87 +15,131 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.api.dependencies import get_optional_user
-from backend.app.db.session import get_db
-from backend.app.schemas.session import (
+from app.api.dependencies import get_current_user
+from app.db.session import get_db
+from app.schemas.session import (
     SessionContextUpdate,
     SessionCreate,
     SessionRead,
     SessionStats,
     SessionUpdate,
 )
-from backend.app.services import session_service
+from app.services import session_service
 
 router = APIRouter()
 
 
 @router.post("/", response_model=SessionRead, status_code=201)
-async def create_session(data: SessionCreate, db: AsyncSession = Depends(get_db)) -> SessionRead:
+async def create_session(
+    data: SessionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
+) -> SessionRead:
+    if str(data.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     session = await session_service.create_session(db, data)
     return SessionRead.model_validate(session)
 
 
 @router.get("/{session_id}", response_model=SessionRead)
 async def read_session(
-    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> SessionRead:
     session = await session_service.get_session(db, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     return SessionRead.model_validate(session)
 
 
 @router.get("/user/{user_id}", response_model=list[SessionRead])
 async def list_user_sessions(
-    user_id: uuid.UUID, limit: int = 50, db: AsyncSession = Depends(get_db)
+    user_id: uuid.UUID,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> list[SessionRead]:
+    if str(user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     sessions = await session_service.list_sessions_for_user(db, user_id, limit)
     return [SessionRead.model_validate(s) for s in sessions]
 
 
 @router.patch("/{session_id}", response_model=SessionRead)
 async def patch_session(
-    session_id: uuid.UUID, data: SessionUpdate, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    data: SessionUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> SessionRead:
-    session = await session_service.update_session(db, session_id, data)
-    if session is None:
+    existing_session = await session_service.get_session(db, session_id)
+    if existing_session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    if str(existing_session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
+    session = await session_service.update_session(db, session_id, data)
     return SessionRead.model_validate(session)
 
 
 @router.post("/{session_id}/end", response_model=SessionRead)
 async def end_session(
-    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> SessionRead:
-    session = await session_service.end_session(db, session_id)
-    if session is None:
+    existing_session = await session_service.get_session(db, session_id)
+    if existing_session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    if str(existing_session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
+    session = await session_service.end_session(db, session_id)
     return SessionRead.model_validate(session)
 
 
 @router.delete("/{session_id}", status_code=204)
 async def delete_session(
-    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> None:
-    deleted = await session_service.delete_session(db, session_id)
-    if not deleted:
+    existing_session = await session_service.get_session(db, session_id)
+    if existing_session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    if str(existing_session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
+    await session_service.delete_session(db, session_id)
 
 
 @router.patch("/{session_id}/context", response_model=SessionRead)
 async def update_context(
-    session_id: uuid.UUID, data: SessionContextUpdate, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    data: SessionContextUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> SessionRead:
-    session = await session_service.update_session_context(db, session_id, data)
-    if session is None:
+    existing_session = await session_service.get_session(db, session_id)
+    if existing_session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    if str(existing_session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
+    session = await session_service.update_session_context(db, session_id, data)
     return SessionRead.model_validate(session)
 
 
 @router.get("/{session_id}/stats", response_model=SessionStats)
 async def session_stats(
-    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> SessionStats:
+    existing_session = await session_service.get_session(db, session_id)
+    if existing_session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if str(existing_session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     stats = await session_service.get_session_stats(db, session_id)
     if stats is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -104,16 +148,20 @@ async def session_stats(
 
 @router.get("/{session_id}/export/json")
 async def export_session_json(
-    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ):
     """Export all predictions for a session as a JSON file."""
     import json as _json
-    from backend.app.services.prediction_service import list_predictions_for_session
-    from backend.app.schemas.prediction import PredictionRead
+    from app.services.prediction_service import list_predictions_for_session
+    from app.schemas.prediction import PredictionRead
 
     session = await session_service.get_session(db, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
 
     predictions = await list_predictions_for_session(db, session_id)
     payload = {
@@ -136,14 +184,18 @@ async def export_session_json(
 
 @router.get("/{session_id}/export/csv")
 async def export_session_csv(
-    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> StreamingResponse:
     """Stream predictions for a session as a CSV file for offline analysis."""
-    from backend.app.services.prediction_service import list_predictions_for_session  # local import avoids circular
+    from app.services.prediction_service import list_predictions_for_session  # local import avoids circular
 
     session = await session_service.get_session(db, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
 
     predictions = await list_predictions_for_session(db, session_id)
 

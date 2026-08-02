@@ -13,17 +13,25 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.db.session import get_db
-from backend.app.schemas.prediction import PredictionCreate, PredictionRead, XAISummary
-from backend.app.services import prediction_service
+from app.api.dependencies import get_current_user
+from app.db.session import get_db
+from app.schemas.prediction import PredictionCreate, PredictionRead, XAISummary
+from app.services import prediction_service, session_service
 
 router = APIRouter()
 
 
 @router.post("/", response_model=PredictionRead, status_code=201)
 async def create_prediction(
-    data: PredictionCreate, db: AsyncSession = Depends(get_db)
+    data: PredictionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> PredictionRead:
+    session = await session_service.get_session(db, data.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     prediction = await prediction_service.create_prediction(db, data)
     return PredictionRead.model_validate(prediction)
 
@@ -34,7 +42,13 @@ async def list_session_predictions(
     since: Optional[datetime] = None,
     limit: int = 1000,
     db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> list[PredictionRead]:
+    session = await session_service.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     predictions = await prediction_service.list_predictions_for_session(
         db, session_id, since, limit
     )
@@ -43,8 +57,15 @@ async def list_session_predictions(
 
 @router.get("/session/{session_id}/latest", response_model=PredictionRead)
 async def latest_session_prediction(
-    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> PredictionRead:
+    session = await session_service.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     prediction = await prediction_service.latest_prediction(db, session_id)
     if prediction is None:
         raise HTTPException(status_code=404, detail="No predictions yet for this session")
@@ -53,12 +74,19 @@ async def latest_session_prediction(
 
 @router.get("/session/{session_id}/xai", response_model=XAISummary)
 async def session_xai_summary(
-    session_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
 ) -> XAISummary:
     """
     Aggregate SHAP weights across all predictions for a session.
     Returns per-head average modality contributions + time-series trends.
     """
+    session = await session_service.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if str(session.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     summary = await prediction_service.get_xai_summary(db, session_id)
     if summary is None:
         raise HTTPException(status_code=404, detail="No predictions for this session")

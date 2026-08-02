@@ -29,8 +29,7 @@ class Settings(BaseSettings):
 
     # ── Database ─────────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://mhbap:mhbap@localhost:5432/mhbap"
-    DATABASE_SYNC_URL: str = "postgresql://mhbap:mhbap@localhost:5432/mhbap"
-
+    DATABASE_SYNC_URL: str = "postgresql://mhbap:mhbp2625@postgres:5432/mhbap"
     # ── Redis ─────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
 
