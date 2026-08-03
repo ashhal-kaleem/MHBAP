@@ -170,73 +170,69 @@ def _derive_proxy_labels(
                 engagement=engagement, attention=attention, fatigue=fatigue)
 
 
-def load_fer2013(max_samples: int = 6000, seed: int = 42) -> List[dict]:
+def load_fer2013(max_samples: int = 6000, seed: int = 42, split: str = "train") -> List[dict]:
     """Load FER2013. Emotion label from dataset; features from pixel stats only."""
-    print("[real_dataset] FER2013 (clip-benchmark/wds_fer2013)...", flush=True)
+    print(f"[real_dataset] FER2013 (clip-benchmark/wds_fer2013) split={split}...", flush=True)
     from datasets import load_dataset
     rng = np.random.default_rng(seed)
     records: List[dict] = []
-    per_split = max_samples // 2
-    for split in ("train", "test"):
-        try:
-            ds = load_dataset("clip-benchmark/wds_fer2013", split=split,
-                              streaming=True, trust_remote_code=False)
-            ds = ds.shuffle(seed=seed, buffer_size=4000)
-            count = 0
-            for item in ds:
-                if count >= per_split:
-                    break
-                fer_lbl = int(item.get("cls", 6))
-                emo = FER_TO_MHBAP.get(fer_lbl, 0)
-                img = item.get("jpg")
-                if img is None:
-                    continue
-                img_arr = np.array(img.convert("L").resize((48, 48))) \
-                    if hasattr(img, "convert") else np.array(img)
-                aus = _img_to_face_features(img_arr, rng)
-                x   = _build_feature_clean(aus, rng)
-                lbl = _derive_proxy_labels(emo, None, x, rng)
-                lbl["X"] = x
-                records.append(lbl)
-                count += 1
-            print(f"  FER2013 [{split}] {count} samples", flush=True)
-        except Exception as e:
-            print(f"  FER2013 [{split}] WARN: {e}", flush=True)
+    try:
+        ds = load_dataset("clip-benchmark/wds_fer2013", split=split,
+                          streaming=True, trust_remote_code=False)
+        ds = ds.shuffle(seed=seed, buffer_size=4000)
+        count = 0
+        for item in ds:
+            if count >= max_samples:
+                break
+            fer_lbl = int(item.get("cls", 6))
+            emo = FER_TO_MHBAP.get(fer_lbl, 0)
+            img = item.get("jpg")
+            if img is None:
+                continue
+            img_arr = np.array(img.convert("L").resize((48, 48))) \
+                if hasattr(img, "convert") else np.array(img)
+            aus = _img_to_face_features(img_arr, rng)
+            x   = _build_feature_clean(aus, rng)
+            lbl = _derive_proxy_labels(emo, None, x, rng)
+            lbl["X"] = x
+            records.append(lbl)
+            count += 1
+        print(f"  FER2013 [{split}] {count} samples", flush=True)
+    except Exception as e:
+        print(f"  FER2013 [{split}] WARN: {e}", flush=True)
     return records
 
 
-def load_rafdb(max_samples: int = 3000, seed: int = 42) -> List[dict]:
+def load_rafdb(max_samples: int = 3000, seed: int = 42, split: str = "train") -> List[dict]:
     """Load RAF-DB. Emotion label from dataset; features from pixel stats only."""
-    print("[real_dataset] RAF-DB (deanngkl/raf-db-7emotions)...", flush=True)
+    print(f"[real_dataset] RAF-DB (deanngkl/raf-db-7emotions) split={split}...", flush=True)
     from datasets import load_dataset
     rng = np.random.default_rng(seed + 1)
     records: List[dict] = []
-    per_split = max_samples // 2
-    for split in ("train", "test"):
-        try:
-            ds = load_dataset("deanngkl/raf-db-7emotions", split=split,
-                              streaming=True, trust_remote_code=False)
-            ds = ds.shuffle(seed=seed + 1, buffer_size=4000)
-            count = 0
-            for item in ds:
-                if count >= per_split:
-                    break
-                raf_lbl = int(item.get("label", 7))
-                emo = RAF_TO_MHBAP.get(raf_lbl, 0)
-                img = item.get("image")
-                if img is None:
-                    continue
-                img_arr = np.array(img.convert("L").resize((48, 48))) \
-                    if hasattr(img, "convert") else np.array(img)
-                aus = _img_to_face_features(img_arr, rng)
-                x   = _build_feature_clean(aus, rng)
-                lbl = _derive_proxy_labels(emo, None, x, rng)
-                lbl["X"] = x
-                records.append(lbl)
-                count += 1
-            print(f"  RAF-DB [{split}] {count} samples", flush=True)
-        except Exception as e:
-            print(f"  RAF-DB [{split}] WARN: {e}", flush=True)
+    try:
+        ds = load_dataset("deanngkl/raf-db-7emotions", split=split,
+                          streaming=True, trust_remote_code=False)
+        ds = ds.shuffle(seed=seed + 1, buffer_size=4000)
+        count = 0
+        for item in ds:
+            if count >= max_samples:
+                break
+            raf_lbl = int(item.get("label", 7))
+            emo = RAF_TO_MHBAP.get(raf_lbl, 0)
+            img = item.get("image")
+            if img is None:
+                continue
+            img_arr = np.array(img.convert("L").resize((48, 48))) \
+                if hasattr(img, "convert") else np.array(img)
+            aus = _img_to_face_features(img_arr, rng)
+            x   = _build_feature_clean(aus, rng)
+            lbl = _derive_proxy_labels(emo, None, x, rng)
+            lbl["X"] = x
+            records.append(lbl)
+            count += 1
+        print(f"  RAF-DB [{split}] {count} samples", flush=True)
+    except Exception as e:
+        print(f"  RAF-DB [{split}] WARN: {e}", flush=True)
     return records
 
 
@@ -314,24 +310,56 @@ def make_real_dataset(
       fatigue    -- PROXY: noisy HCI formula (no public GT)
     """
     print("[real_dataset] Loading real datasets...", flush=True)
-    records: List[dict] = []
-    records.extend(load_fer2013(max_samples=fer_samples, seed=seed))
-    records.extend(load_rafdb(max_samples=raf_samples,  seed=seed))
-    records.extend(load_wesad(max_samples=wesad_samples, seed=seed))
-    print(f"[real_dataset] Total records: {len(records)}", flush=True)
+    train_records: List[dict] = []
+    test_records: List[dict] = []
+    
+    # Calculate samples for splits based on total desired samples
+    fer_test = int(fer_samples * (val_frac + test_frac))
+    fer_train = fer_samples - fer_test
+    
+    raf_test = int(raf_samples * (val_frac + test_frac))
+    raf_train = raf_samples - raf_test
+    
+    wesad_test = int(wesad_samples * (val_frac + test_frac))
+    wesad_train = wesad_samples - wesad_test
 
-    if len(records) == 0:
-        raise RuntimeError("No records loaded from any dataset.")
+    train_records.extend(load_fer2013(max_samples=fer_train, seed=seed, split="train"))
+    test_records.extend(load_fer2013(max_samples=fer_test, seed=seed, split="test"))
+    
+    train_records.extend(load_rafdb(max_samples=raf_train, seed=seed, split="train"))
+    test_records.extend(load_rafdb(max_samples=raf_test, seed=seed, split="test"))
+    
+    wesad_all = load_wesad(max_samples=wesad_samples, seed=seed)
+    
+    # WESAD doesn't have a test split in LouisSimon/wesad-parquet usually, 
+    # so we'll just slice it. Since it's not face images, it's less of an issue, 
+    # but still better to keep them separate.
+    rng_w = np.random.default_rng(seed)
+    idx_w = np.arange(len(wesad_all))
+    rng_w.shuffle(idx_w)
+    wesad_all = [wesad_all[i] for i in idx_w]
+    train_records.extend(wesad_all[:wesad_train])
+    test_records.extend(wesad_all[wesad_train:])
+
+    print(f"[real_dataset] Total train records: {len(train_records)}, test records: {len(test_records)}", flush=True)
+
+    if len(train_records) == 0:
+        raise RuntimeError("No train records loaded from any dataset.")
 
     rng = np.random.default_rng(seed)
-    idx = np.arange(len(records))
-    rng.shuffle(idx)
-    records = [records[i] for i in idx]
+    idx_train = np.arange(len(train_records))
+    rng.shuffle(idx_train)
+    train_records = [train_records[i] for i in idx_train]
+    
+    idx_test = np.arange(len(test_records))
+    rng.shuffle(idx_test)
+    test_records = [test_records[i] for i in idx_test]
 
-    N = len(records)
-    n_test  = int(N * test_frac)
-    n_val   = int(N * val_frac)
-    n_train = N - n_test - n_val
+    N_test_pool = len(test_records)
+    # the test pool contains val_frac + test_frac portion of samples.
+    # we need to split it proportionally into val and test.
+    val_ratio_in_test_pool = val_frac / (val_frac + test_frac)
+    n_val = int(N_test_pool * val_ratio_in_test_pool)
 
     def _pack(recs: list) -> dict:
         return {
@@ -343,9 +371,9 @@ def make_real_dataset(
             "fatigue":    np.array([r["fatigue"]    for r in recs], dtype=np.float32),
         }
 
-    train = _pack(records[:n_train])
-    val   = _pack(records[n_train:n_train + n_val])
-    test  = _pack(records[n_train + n_val:])
+    train = _pack(train_records)
+    val   = _pack(test_records[:n_val])
+    test  = _pack(test_records[n_val:])
 
     print(f"[real_dataset] Split: train={len(train['X'])} "
           f"val={len(val['X'])} test={len(test['X'])}", flush=True)
