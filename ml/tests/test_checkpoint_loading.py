@@ -43,7 +43,7 @@ def _fresh_state_dict():
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestTrainerSaveFormat:
-    """Verify train_tcmt.py produces the wrapper-dict format."""
+    """Verify TCMT_Train_Colab.ipynb produces the wrapper-dict format."""
 
     def test_real_checkpoint_is_wrapper_dict(self):
         """The on-disk file must be a dict, not a bare state_dict."""

@@ -35,6 +35,7 @@ from __future__ import annotations
 import os, warnings
 from typing import Tuple, List, Optional
 import numpy as np
+import math
 
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -64,39 +65,68 @@ RAF_TO_MHBAP = {1: 1, 2: 2, 3: 2, 4: 1, 5: 2, 6: 3, 7: 0}
 WESAD_STRESS_MAP = {0: 0.3, 1: 0.1, 2: 0.9, 3: 0.15}
 
 
+_GLOBAL_FACE_MESH = None
+
+def _get_face_mesh():
+    global _GLOBAL_FACE_MESH
+    if _GLOBAL_FACE_MESH is None:
+        try:
+            import mediapipe as mp # type: ignore
+            _GLOBAL_FACE_MESH = mp.solutions.face_mesh.FaceMesh(
+                static_image_mode=True,
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5,
+            )
+        except ImportError:
+            _GLOBAL_FACE_MESH = "MISSING"
+    return _GLOBAL_FACE_MESH
+
+
+def _dist(a, b) -> float:
+    return math.hypot(a.x - b.x, a.y - b.y)
+
+
 def _img_to_face_features(img_array: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Pixel-region statistics -> 12-dim AU proxy features.
+    """MediaPipe FaceMesh -> 12-dim AU proxy features.
+    Matches FacePipeline inference logic. Falls back to zeros if no face.
     Uses only image content; no emotion label involved.
     """
-    gray = img_array.mean(axis=2) if img_array.ndim == 3 else img_array.astype(float)
-    H, W = gray.shape
-    g = gray / 255.0
+    mesh = _get_face_mesh()
+    zeros = np.zeros(12, dtype=np.float32)
+    if mesh == "MISSING" or mesh is None:
+        return zeros
 
-    def _r(r0, r1, c0, c1):
-        a = g[int(H*r0):int(H*r1), int(W*c0):int(W*c1)]
-        return float(a.mean()) if a.size > 0 else 0.5
+    results = mesh.process(img_array)
+    if not results.multi_face_landmarks:
+        return zeros
 
-    brow = _r(0.10, 0.30, 0.20, 0.80)
-    el   = _r(0.25, 0.45, 0.10, 0.45)
-    er   = _r(0.25, 0.45, 0.55, 0.90)
-    nose = _r(0.40, 0.60, 0.30, 0.70)
-    mth  = _r(0.60, 0.85, 0.25, 0.75)
-    jaw  = _r(0.75, 0.95, 0.20, 0.80)
-    n    = rng.uniform
+    lm = results.multi_face_landmarks[0].landmark
+    left_brow   = lm[105]; left_eye_top   = lm[159]
+    right_brow  = lm[334]; right_eye_top  = lm[386]
+    brow_mid_l  = lm[107]; brow_mid_r     = lm[336]
+    nose_tip    = lm[4]
+    upper_lip   = lm[13]; lower_lip = lm[14]
+    lip_l       = lm[61]; lip_r     = lm[291]
+    jaw         = lm[152]; chin      = lm[175]
+    l_eye_top   = lm[159]; l_eye_bot = lm[145]
+    r_eye_top   = lm[386]; r_eye_bot = lm[374]
+
+    face_h = _dist(lm[10], lm[152]) or 1e-6
 
     return np.array([
-        float(np.clip(brow * 1.5,               0, 1)),
-        float(np.clip(brow * 1.5 + n(-0.05, 0.05), 0, 1)),
-        float(np.clip(1.0 - brow * 1.2,         0, 1)),
-        float(np.clip(1.0 - el,                 0, 1)),
-        float(np.clip(1.0 - er,                 0, 1)),
-        float(np.clip(nose * 0.8,               0, 1)),
-        float(np.clip(mth * 1.3,                0, 1)),
-        float(np.clip(mth * 1.3 + n(-0.05, 0.05), 0, 1)),
-        float(np.clip(1.0 - mth * 1.5,          0, 1)),
-        float(np.clip(jaw * 1.5,                0, 1)),
-        float(np.clip(mth * 0.8,                0, 1)),
-        float(np.clip(jaw * 0.9,                0, 1)),
+        min(1.0, _dist(left_brow,  left_eye_top)  / face_h * 5),
+        min(1.0, _dist(right_brow, right_eye_top) / face_h * 5),
+        1.0 - min(1.0, _dist(brow_mid_l, brow_mid_r) / face_h * 4),
+        min(1.0, _dist(l_eye_top, l_eye_bot) / face_h * 10),
+        min(1.0, _dist(r_eye_top, r_eye_bot) / face_h * 10),
+        min(1.0, abs(nose_tip.z) * 3),
+        min(1.0, max(0.0, lip_l.x - lm[0].x) / face_h * 8),
+        min(1.0, max(0.0, lm[0].x - lip_r.x) / face_h * 8),
+        1.0 - min(1.0, _dist(upper_lip, lower_lip) / face_h * 12),
+        min(1.0, _dist(jaw, chin) / face_h * 6),
+        min(1.0, abs(lm[117].z + lm[346].z) * 2),
+        min(1.0, abs(lm[199].z) * 4),
     ], dtype=np.float32)
 
 
@@ -189,7 +219,7 @@ def load_fer2013(max_samples: int = 6000, seed: int = 42, split: str = "train") 
             img = item.get("jpg")
             if img is None:
                 continue
-            img_arr = np.array(img.convert("L").resize((48, 48))) \
+            img_arr = np.array(img.convert("RGB")) \
                 if hasattr(img, "convert") else np.array(img)
             aus = _img_to_face_features(img_arr, rng)
             x   = _build_feature_clean(aus, rng)
@@ -222,7 +252,7 @@ def load_rafdb(max_samples: int = 3000, seed: int = 42, split: str = "train") ->
             img = item.get("image")
             if img is None:
                 continue
-            img_arr = np.array(img.convert("L").resize((48, 48))) \
+            img_arr = np.array(img.convert("RGB")) \
                 if hasattr(img, "convert") else np.array(img)
             aus = _img_to_face_features(img_arr, rng)
             x   = _build_feature_clean(aus, rng)
@@ -326,8 +356,13 @@ def make_real_dataset(
     train_records.extend(load_fer2013(max_samples=fer_train, seed=seed, split="train"))
     test_records.extend(load_fer2013(max_samples=fer_test, seed=seed, split="test"))
     
-    train_records.extend(load_rafdb(max_samples=raf_train, seed=seed, split="train"))
-    test_records.extend(load_rafdb(max_samples=raf_test, seed=seed, split="test"))
+    raf_all = load_rafdb(max_samples=raf_samples, seed=seed, split="train")
+    rng_r = np.random.default_rng(seed + 1)
+    idx_r = np.arange(len(raf_all))
+    rng_r.shuffle(idx_r)
+    raf_all = [raf_all[i] for i in idx_r]
+    train_records.extend(raf_all[:raf_train])
+    test_records.extend(raf_all[raf_train:])
     
     wesad_all = load_wesad(max_samples=wesad_samples, seed=seed)
     

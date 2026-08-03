@@ -95,7 +95,7 @@ class BehaviourPredictor:
                     wp = alt
             if wp.exists():
                 raw = torch.load(str(wp), map_location="cpu", weights_only=True)
-                # train_tcmt.py wraps weights in {"state_dict": ..., "test_metrics": ...}.
+                # TCMT_Train_Colab.ipynb wraps weights in {"state_dict": ..., "test_metrics": ...}.
                 # Handle both the wrapper-dict format and a bare state_dict for
                 # backward-compatibility with any legacy checkpoints saved directly.
                 state_dict = (
@@ -151,15 +151,15 @@ class BehaviourPredictor:
             with torch.no_grad():
                 x   = torch.tensor(arr, dtype=torch.float32).unsqueeze(0)
                 out = self._tcmt(x)
-            tcmt_logits = np.array(out["emotion_logits"][0])
-            stress     = float(out["stress"][0, 0]) / 10.0
-            engagement = float(out["engagement"][0, 0])
-            attention  = float(out["attention"][0, 0])
-            fatigue    = float(out["fatigue"][0, 0])
+            tcmt_logits = out["emotion_logits"][0].cpu().numpy()
+            stress     = float(out["stress"][0, 0].cpu().numpy())
+            engagement = float(out["engagement"][0, 0].cpu().numpy())
+            attention  = float(out["attention"][0, 0].cpu().numpy())
+            fatigue    = float(out["fatigue"][0, 0].cpu().numpy())
         else:
             out = self._tcmt(arr[np.newaxis])
             tcmt_logits = np.array(out["emotion_logits"][0])
-            stress     = float(out["stress"][0, 0]) / 10.0
+            stress     = float(out["stress"][0, 0])
             engagement = float(out["engagement"][0, 0])
             attention  = float(out["attention"][0, 0])
             fatigue    = float(out["fatigue"][0, 0])

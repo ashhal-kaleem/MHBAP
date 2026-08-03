@@ -152,7 +152,7 @@ class TestWeightPersistence:
 
     def test_checkpoint_loads(self):
         if not WEIGHT_PATH.exists():
-            pytest.skip("Run ml.training.train_tcmt first")
+            pytest.skip("Run colab/TCMT_Train_Colab.ipynb first")
         import torch
         from ml.fusion.tcmt import TCMT, EMOTION_CLASSES
         ckpt = torch.load(str(WEIGHT_PATH), map_location="cpu")

@@ -41,10 +41,16 @@ def emotion_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict:
     if y_pred.ndim == 2 and len(classes) > 1:
         try:
             from scipy.special import softmax as _sfmx
+            import warnings
             probs   = _sfmx(y_pred, axis=1)
-            roc_auc = float(roc_auc_score(
-                y_true, probs[:, :len(classes)], multi_class="ovr",
-                labels=classes, average="macro"))
+            all_classes = list(range(probs.shape[1]))
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                roc_auc = float(roc_auc_score(
+                    y_true, probs, multi_class="ovr",
+                    labels=all_classes, average="macro"))
+                if np.isnan(roc_auc):
+                    roc_auc = None
         except Exception:
             pass
     out = {

@@ -15,7 +15,7 @@ import pytest
 from pathlib import Path
 
 
-CHECKPOINT = Path("ml/models/weights/enet_b0_8_best_afew.pt")
+from ml.models.emotion_recognizer import CHECKPOINT
 HAS_CHECKPOINT = CHECKPOINT.exists()
 
 

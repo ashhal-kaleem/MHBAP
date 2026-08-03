@@ -125,11 +125,11 @@ if _TORCH_AVAILABLE:
             cls_out = enc[:, 0, :]                                # (B, D)
 
             return {
-                "emotion_logits": self.head_emotion(cls_out).detach().numpy(),
-                "stress":    (torch.sigmoid(self.head_stress(cls_out)) * 10).detach().numpy(),
-                "engagement": torch.sigmoid(self.head_engagement(cls_out)).detach().numpy(),
-                "attention":  torch.sigmoid(self.head_attention(cls_out)).detach().numpy(),
-                "fatigue":    torch.sigmoid(self.head_fatigue(cls_out)).detach().numpy(),
+                "emotion_logits": self.head_emotion(cls_out),
+                "stress":         torch.sigmoid(self.head_stress(cls_out)),
+                "engagement":     torch.sigmoid(self.head_engagement(cls_out)),
+                "attention":      torch.sigmoid(self.head_attention(cls_out)),
+                "fatigue":        torch.sigmoid(self.head_fatigue(cls_out)),
             }
 
 
@@ -144,7 +144,7 @@ else:
             B = x.shape[0] if hasattr(x, "shape") else 1
             return {
                 "emotion_logits": np.ones((B, EMOTION_CLASSES)) / EMOTION_CLASSES,
-                "stress":     np.full((B, 1), 5.0),
+                "stress":     np.full((B, 1), 0.5),
                 "engagement": np.full((B, 1), 0.5),
                 "attention":  np.full((B, 1), 0.5),
                 "fatigue":    np.full((B, 1), 0.5),
