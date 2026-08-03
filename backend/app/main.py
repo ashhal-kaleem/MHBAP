@@ -67,10 +67,14 @@ def create_app() -> FastAPI:
     app.add_middleware(ContentSizeLimitMiddleware)
 
     # CORS
+    # allow_credentials=True is incompatible with allow_origins=["*"] in
+    # Starlette 0.30+ and is unnecessary for token-based auth (Bearer via
+    # query param).  Only enable it when explicit origins are configured.
+    _cors_origins = [str(o) for o in settings.CORS_ORIGINS]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(o) for o in settings.CORS_ORIGINS] or ["*"],
-        allow_credentials=True,
+        allow_origins=_cors_origins or ["*"],
+        allow_credentials=bool(_cors_origins),
         allow_methods=["*"],
         allow_headers=["*"],
     )

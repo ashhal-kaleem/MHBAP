@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime
 from typing import Any, Dict
 from uuid import UUID
 
@@ -48,6 +49,7 @@ class DataWriter:
         session_id: UUID,
         modality: str,
         features: Dict[str, float],
+        timestamp: datetime,
     ) -> None:
         """Enqueue a feature row — non-blocking; drops if queue is full."""
         try:
@@ -55,6 +57,7 @@ class DataWriter:
                 "session_id": session_id,
                 "modality": modality,
                 "features": features,
+                "timestamp": timestamp,
             })
         except asyncio.QueueFull:
             logger.warning("DataWriter queue full — dropping %s frame", modality)
@@ -80,6 +83,7 @@ class DataWriter:
                             session_id=x["session_id"],
                             modality=x["modality"],
                             feature_vector=x["features"],
+                            time=x["timestamp"],
                         )
                         for x in batch
                     ]

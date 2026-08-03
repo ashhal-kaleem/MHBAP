@@ -135,7 +135,8 @@ class SessionRunner:
         self.latest_prediction = prediction
 
         # Push to any connected WebSocket clients
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_dt = datetime.now(timezone.utc)
+        now_iso = now_dt.isoformat()
         await _bus_publish(str(self.session_id), {
             "type": "prediction",
             "payload": {
@@ -162,4 +163,4 @@ class SessionRunner:
             ("voice", voice_feats),
             ("hci",   hci_feats),
         ]:
-            await self._writer.write(self.session_id, modality, feats)
+            await self._writer.write(self.session_id, modality, feats, timestamp=now_dt)

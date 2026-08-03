@@ -60,7 +60,12 @@ class RunnerStatus(BaseModel):
 async def _run_session(session_id: str) -> None:
     """Entry-point for the background task.  Wraps SessionRunner lifecycle."""
     from uuid import UUID as _UUID
-    from ml.session_runner import SessionRunner
+    
+    def _import_session_runner():
+        from ml.session_runner import SessionRunner
+        return SessionRunner
+
+    SessionRunner = await asyncio.to_thread(_import_session_runner)
 
     sid = _UUID(session_id)
     logger.info("SessionRunner starting for session=%s", session_id)

@@ -89,5 +89,11 @@ async def session_xai_summary(
         raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     summary = await prediction_service.get_xai_summary(db, session_id)
     if summary is None:
-        raise HTTPException(status_code=404, detail="No predictions for this session")
+        return XAISummary(
+            session_id=session_id,
+            prediction_count=0,
+            avg_weights={},
+            trends={"stress": [], "engagement": [], "attention": [], "fatigue": []},
+            dominant_modality=None,
+        )
     return summary

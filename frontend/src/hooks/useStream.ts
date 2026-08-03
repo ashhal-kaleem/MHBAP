@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ConnectionStatus, WsMessage } from '@/types'
+import { getToken } from '@/services/api'
 
 /**
  * WS base URL.
@@ -34,7 +35,14 @@ export function useStream(sessionId: string | null) {
       sessionId === 'demo'
         ? '/api/v1/stream/demo'
         : `/api/v1/stream/session/${sessionId}`
-    const url = `${WS_BASE}${path}`
+    let url = `${WS_BASE}${path}`
+
+    // Browser WebSockets cannot send Authorization headers.
+    // We must pass the token via query param as expected by get_ws_current_user.
+    const token = getToken()
+    if (token) {
+      url += `?access_token=${token}`
+    }
 
     setStatus('connecting')
     const ws = new WebSocket(url)
