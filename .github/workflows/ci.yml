@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build backend image
-        run: docker build -t mhbap-backend:ci ./backend
+        run: docker build -t mhbap-backend:ci -f backend/Dockerfile .
 
       - name: Build frontend image
         run: docker build -t mhbap-frontend:ci ./frontend
