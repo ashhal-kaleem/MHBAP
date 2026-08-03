@@ -57,9 +57,14 @@ async def update_session(
 
 async def end_session(db: AsyncSession, session_id: uuid.UUID) -> Session | None:
     """Convenience wrapper — marks a session completed with a server timestamp."""
-    return await update_session(
-        db, session_id, SessionUpdate(status="completed", ended_at=datetime.now(timezone.utc))
-    )
+    result = await db.execute(select(Session).where(Session.id == session_id))
+    session = result.scalar_one_or_none()
+    if session is None:
+        return None
+    session.status = "completed"
+    session.ended_at = datetime.now(timezone.utc)
+    await db.commit()
+    return session
 
 
 async def delete_session(db: AsyncSession, session_id: uuid.UUID) -> bool:

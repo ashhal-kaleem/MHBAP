@@ -97,11 +97,15 @@ def _make_app(
     mock_session = MagicMock()
     mock_session.user_id = uuid.UUID(effective_owner)
 
-    import app.services.session_service as _ss
-    _ss.get_session = AsyncMock(return_value=mock_session)  # type: ignore[assignment]
+    patcher = patch("app.services.session_service.get_session", new_callable=AsyncMock, return_value=mock_session)
+    patcher.start()
+    
+    # Store on a global list to stop later
+    _active_patchers.append(patcher)
 
     return app
 
+_active_patchers = []
 
 @pytest.fixture(autouse=True)
 def clean_runner_state() -> None:
@@ -112,6 +116,11 @@ def clean_runner_state() -> None:
         task.cancel()
     _active_runners.clear()
     _runner_objects.clear()
+    
+    for p in _active_patchers:
+        p.stop()
+    _active_patchers.clear()
+
 
 
 @pytest.fixture(autouse=True)

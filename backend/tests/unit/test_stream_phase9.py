@@ -32,8 +32,11 @@ from app.api.v1.endpoints.stream import (
 
 @pytest.fixture(scope="module")
 def client():
+    from app.api.dependencies import get_ws_current_user
+    app.dependency_overrides[get_ws_current_user] = lambda: "fake-user-id"
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
+    app.dependency_overrides.clear()
 
 
 # ── unit: helpers ─────────────────────────────────────────────────────────
@@ -173,7 +176,7 @@ class TestRedisStreamBusFallback:
         sid = "fallback-test-session"
         q = inproc.subscribe(sid)
         try:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 bus_mod.publish(sid, {"type": "prediction", "payload": {"stress": 0.7}})
             )
             msg = q.get_nowait()

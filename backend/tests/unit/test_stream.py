@@ -15,8 +15,11 @@ from app.main import app
 
 @pytest.fixture(scope="module")
 def client():
+    from app.api.dependencies import get_ws_current_user
+    app.dependency_overrides[get_ws_current_user] = lambda: "fake-user-id"
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c
+    app.dependency_overrides.clear()
 
 
 class TestDemoStream:

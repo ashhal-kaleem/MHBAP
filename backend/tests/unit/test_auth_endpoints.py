@@ -44,13 +44,16 @@ def _noop_rate_limit(limit=10, window_seconds=60):
 
 @pytest.fixture(scope="module")
 def client():
-    with patch(
-        "app.api.v1.endpoints.auth.rate_limit",
-        side_effect=_noop_rate_limit,
+    from tests.unit.fake_redis import FakeRedis
+    
+    with (
+        patch("app.api.v1.endpoints.auth.rate_limit", side_effect=_noop_rate_limit),
+        patch("app.core.rate_limit.get_redis", return_value=FakeRedis()),
     ):
         app = _make_app()
         with TestClient(app, raise_server_exceptions=True) as c:
             yield c
+
 
 
 FAKE_UID = str(uuid.uuid4())

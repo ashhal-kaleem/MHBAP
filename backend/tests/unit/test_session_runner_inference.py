@@ -224,7 +224,7 @@ class TestSessionRunnerPassesFrameToPredictor:
         runner._mic = MagicMock()
         runner._mic.get_chunk.return_value = np.zeros(1024, dtype=np.float32)
         runner._hci = MagicMock()
-        runner._hci.get_events.return_value = []
+        runner._hci.drain.return_value = ([], [])
 
         # Pipeline mocks — return empty feature dicts
         for attr in ("_face", "_gaze", "_pose", "_voice", "_hci_pipe"):
