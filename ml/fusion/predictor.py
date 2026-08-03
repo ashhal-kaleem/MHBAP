@@ -40,6 +40,11 @@ EMOTION_LABELS = [
     "fear", "disgust", "anger", "contempt",
 ]
 
+# TCMT outputs 4-class logits (0=neutral, 1=happy, 2=sad, 3=angry)
+TCMT_EMOTION_LABELS = [
+    "neutral", "happy", "sad", "angry"
+]
+
 T_STEPS      = 8
 WEIGHTS_PATH = Path(__file__).parent.parent / "models" / "weights" / "tcmt.pt"
 
@@ -184,8 +189,8 @@ class BehaviourPredictor:
             exp   = np.exp(tcmt_logits - tcmt_logits.max())
             probs = exp / exp.sum()
             top   = int(np.argmax(probs))
-            emotion_label  = EMOTION_LABELS[top]
-            emotion_scores = {EMOTION_LABELS[i]: round(float(probs[i]), 4) for i in range(EMOTION_CLASSES)}
+            emotion_label  = TCMT_EMOTION_LABELS[top]
+            emotion_scores = {TCMT_EMOTION_LABELS[i]: round(float(probs[i]), 4) for i in range(EMOTION_CLASSES)}
 
         return PredictionResult(
             emotion        = emotion_label,

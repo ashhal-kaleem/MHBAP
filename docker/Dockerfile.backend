@@ -4,7 +4,7 @@ WORKDIR /app
 
 # System deps for OpenCV + audio
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx libglib2.0-0 libsndfile1 ffmpeg \
+    build-essential linux-libc-dev libgl1 libglib2.0-0 libsndfile1 ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
@@ -12,8 +12,9 @@ COPY backend/ ./backend/
 COPY ml/ ./ml/
 COPY scripts/ ./scripts/
 
-RUN pip install --no-cache-dir -e ".[ml]"
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu \
+    "torch==2.3.1+cpu" "torchvision==0.18.1+cpu" -e ".[ml]"
 
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["sh", "-c", "cd backend && alembic upgrade head && cd .. && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 2"]

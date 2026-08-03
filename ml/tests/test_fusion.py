@@ -61,10 +61,38 @@ class TestPredictor(unittest.TestCase):
         self.assertIsInstance(result, PredictionResult)
 
     def test_emotion_label_valid(self):
-        from ml.fusion.predictor import BehaviourPredictor, EMOTION_LABELS
+        from ml.fusion.predictor import BehaviourPredictor, EMOTION_LABELS, TCMT_EMOTION_LABELS
         p = BehaviourPredictor()
         result = p.predict(self._zeros())
-        self.assertIn(result.emotion, EMOTION_LABELS)
+        self.assertTrue(result.emotion in EMOTION_LABELS or result.emotion in TCMT_EMOTION_LABELS)
+
+    def test_fallback_angry(self):
+        from ml.fusion.predictor import BehaviourPredictor
+        import numpy as np
+        p = BehaviourPredictor()
+        
+        class MockTCMT:
+            def __call__(self, x):
+                B = x.shape[0] if hasattr(x, "shape") else 1
+                logits = np.zeros((B, 4))
+                logits[:, 3] = 100.0  # Force class 3 (angry)
+                return {
+                    "emotion_logits": logits,
+                    "stress": np.zeros((B, 1)),
+                    "engagement": np.zeros((B, 1)),
+                    "attention": np.zeros((B, 1)),
+                    "fatigue": np.zeros((B, 1)),
+                }
+                
+        # Inject mock
+        original = p._tcmt
+        p._tcmt = MockTCMT()
+        p._torch = False
+        try:
+            result = p.predict(self._zeros())
+            self.assertEqual(result.emotion, "angry")
+        finally:
+            p._tcmt = original
 
     def test_scores_sum_to_one(self):
         from ml.fusion.predictor import BehaviourPredictor
