@@ -39,7 +39,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from loguru import logger
 
 from app.core.redis_stream_bus import subscribe as redis_subscribe, publish as redis_publish
-from app.api.dependencies import get_ws_current_user
+from app.api.dependencies import get_ws_current_user  # used by live session stream only
 
 router = APIRouter()
 
@@ -200,8 +200,10 @@ async def _ping_loop(ws: WebSocket) -> None:
 @router.websocket("/demo")
 async def ws_demo_stream(
     websocket: WebSocket,
-    user_id: str = Depends(get_ws_current_user),
 ) -> None:
+    # NOTE: No auth required — this endpoint emits purely synthetic data
+    # (no DB, no real sessions, no PII).  The live session stream at
+    # /stream/session/{id} retains its get_ws_current_user guard.
     """
     Synthetic prediction stream for UI development / demos.
     No DB, no hardware, no Redis required.

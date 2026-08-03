@@ -2,10 +2,34 @@ import type { Prediction, Session, SessionStats, User, UserAnalytics, XAISummary
 
 const BASE = '/api/v1'
 
+// ── Token store ──────────────────────────────────────────────────────────────
+// Written by useCurrentUser after login/register; read here for every request.
+const TOKEN_KEY = 'mhbap_token'
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY)
+}
+
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken()
+  const authHeader: Record<string, string> = token
+    ? { Authorization: `Bearer ${token}` }
+    : {}
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeader,
+      ...(init?.headers as Record<string, string> | undefined),
+    },
   })
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   return res.json() as Promise<T>
@@ -36,7 +60,10 @@ export const endSession = (sessionId: string) =>
   json<Session>(`/sessions/${sessionId}/end`, { method: 'POST' })
 
 export const deleteSession = (sessionId: string) =>
-  fetch(`${BASE}/sessions/${sessionId}`, { method: 'DELETE' }).then((res) => {
+  fetch(`${BASE}/sessions/${sessionId}`, {
+    method: 'DELETE',
+    headers: getToken() ? { Authorization: `Bearer ${getToken()!}` } : {},
+  }).then((res) => {
     if (!res.ok && res.status !== 204) throw new Error(`API ${res.status}`)
   })
 
@@ -51,7 +78,9 @@ export const getSessionStats = (sessionId: string) =>
 
 /** Triggers CSV download via hidden anchor element. */
 export async function exportSessionCsv(sessionId: string): Promise<void> {
-  const res = await fetch(`${BASE}/sessions/${sessionId}/export/csv`)
+  const res = await fetch(`${BASE}/sessions/${sessionId}/export/csv`, {
+    headers: getToken() ? { Authorization: `Bearer ${getToken()!}` } : {},
+  })
   if (!res.ok) throw new Error(`Export failed: ${res.status}`)
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
@@ -79,7 +108,9 @@ export const getUserAnalytics = (userId: string) =>
   json<UserAnalytics>(`/analytics/user/${userId}`)
 
 export async function exportSessionJson(sessionId: string): Promise<void> {
-  const res = await fetch(`${BASE}/sessions/${sessionId}/export/json`)
+  const res = await fetch(`${BASE}/sessions/${sessionId}/export/json`, {
+    headers: getToken() ? { Authorization: `Bearer ${getToken()!}` } : {},
+  })
   if (!res.ok) throw new Error(`Export failed: ${res.status}`)
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
@@ -93,7 +124,9 @@ export async function exportSessionJson(sessionId: string): Promise<void> {
 }
 
 export async function exportUserCsv(userId: string): Promise<void> {
-  const res = await fetch(`${BASE}/analytics/user/${userId}/export/csv`)
+  const res = await fetch(`${BASE}/analytics/user/${userId}/export/csv`, {
+    headers: getToken() ? { Authorization: `Bearer ${getToken()!}` } : {},
+  })
   if (!res.ok) throw new Error(`Export failed: ${res.status}`)
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
