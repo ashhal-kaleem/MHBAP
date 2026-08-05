@@ -27,10 +27,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
-    from app.core.Redis import get_redis
     from app.db.Session import get_engine
+    from app.core.Redis import get_redis
 
-    get_engine()  # opens the pool lazily; first real query connects
+    engine = get_engine()  # opens the pool lazily; first real query connects
+    from app.db.Base import Base
+    import app.db.models  # noqa: F401
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     get_redis()
 
     # Phase 5: pre-load ML model weights here

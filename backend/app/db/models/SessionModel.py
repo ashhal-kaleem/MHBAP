@@ -9,8 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, String, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import DateTime, ForeignKey, JSON, String, UUID, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.Base import Base
@@ -28,7 +27,7 @@ class Session(Base):
 
     consent_recording: Mapped[bool] = mapped_column(default=False)
     faces_blurred: Mapped[bool] = mapped_column(default=False)
-    session_metadata: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    session_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

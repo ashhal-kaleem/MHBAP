@@ -9,8 +9,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Query, Depends
 
 from app.api.Dependencies import get_current_user
-from app.Evaluation.Benchmark import run_benchmark
-from app.Evaluation.Ablation import run_ablation, MODALITIES
+from app.evaluation.Benchmark import run_benchmark
+from app.evaluation.Ablation import run_ablation, MODALITIES
 from app.schemas.Evaluation import (
     BenchmarkResponse,
     EvaluationReportSchema,

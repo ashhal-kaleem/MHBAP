@@ -10,16 +10,22 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.Main import app
 
 
 @pytest.fixture(scope="module")
 def client():
+    from unittest.mock import AsyncMock, patch
     from app.api.Dependencies import get_ws_current_user
-    app.dependency_overrides[get_ws_current_user] = lambda: "fake-user-id"
-    with TestClient(app, raise_server_exceptions=True) as c:
-        yield c
-    app.dependency_overrides.clear()
+    
+    mock_session = AsyncMock()
+    mock_session.user_id = "fake-user-id"
+    
+    with patch("app.services.SessionService.get_session", new=AsyncMock(return_value=mock_session)):
+        app.dependency_overrides[get_ws_current_user] = lambda: "fake-user-id"
+        with TestClient(app, raise_server_exceptions=True) as c:
+            yield c
+        app.dependency_overrides.clear()
 
 
 class TestDemoStream:

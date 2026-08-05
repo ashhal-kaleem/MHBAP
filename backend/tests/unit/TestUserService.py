@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from app.schemas.User import UserCreate
-from app.services import user_service
+from app.services import UserService as user_service
 
 
 @pytest.mark.asyncio

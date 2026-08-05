@@ -10,7 +10,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from app.db.Session import check_db_connection
-from app.main import app
+from app.Main import app
 
 
 @pytest_asyncio.fixture

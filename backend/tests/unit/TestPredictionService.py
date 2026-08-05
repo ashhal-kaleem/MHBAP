@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from app.schemas.Prediction import PredictionCreate
-from app.services import prediction_service
+from app.services import PredictionService as prediction_service
 
 
 def _sample_prediction_data(**overrides) -> PredictionCreate:

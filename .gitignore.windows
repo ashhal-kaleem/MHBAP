@@ -1,4 +1,4 @@
-# MHBAP — Linux .gitignore
+# MHBAP — Windows .gitignore (For Windows User / Teammate)
 
 # Python
 __pycache__/
@@ -21,16 +21,30 @@ htmlcov/
 .coverage
 coverage.xml
 *.log
-*.db
-*.sqlite3
 
-# Linux / macOS hidden OS files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-.fseventsd
+# Windows OS Specific Files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+*.url
+
+# Visual Studio / VS Code Windows Artifacts
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
 
 # Node / Frontend
 node_modules/
@@ -63,12 +77,8 @@ data/exports/
 !.env.example
 *.pem
 *.key
-
-# IDE
-.vscode/
-.idea/
-*.suo
-*.user
+*.pfx
+*.p12
 
 # Docker
 docker/postgres_data/

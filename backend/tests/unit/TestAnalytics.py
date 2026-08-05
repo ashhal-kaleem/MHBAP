@@ -110,9 +110,9 @@ class TestAnalyticsSchemas:
 # ── service unit test (mocked DB) ─────────────────────────────────────────
 
 class TestAnalyticsServiceEmpty:
-    def test_empty_user_returns_zero_sessions(self):
+    @pytest.mark.asyncio
+    async def test_empty_user_returns_zero_sessions(self):
         """get_user_analytics returns session_count=0 when no sessions exist."""
-        import asyncio
         from app.services.AnalyticsService import get_user_analytics
 
         uid = uuid.uuid4()
@@ -125,9 +125,7 @@ class TestAnalyticsServiceEmpty:
         mock_db = AsyncMock()
         mock_db.execute = AsyncMock(return_value=mock_result)
 
-        result = asyncio.get_event_loop().run_until_complete(
-            get_user_analytics(mock_db, uid)
-        )
+        result = await get_user_analytics(mock_db, uid)
         assert result.session_count == 0
         assert result.total_duration_seconds == 0.0
         assert result.emotion_breakdown.total == 0
@@ -141,7 +139,7 @@ class TestAnalyticsEndpoint:
     def test_analytics_endpoint_exists(self):
         """Analytics router is mounted and returns 200 or 422 (not 404)."""
         from fastapi.testclient import TestClient
-        from app.main import app
+        from app.Main import app
 
         uid = uuid.uuid4()
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -151,7 +149,7 @@ class TestAnalyticsEndpoint:
 
     def test_analytics_export_csv_endpoint_exists(self):
         from fastapi.testclient import TestClient
-        from app.main import app
+        from app.Main import app
 
         uid = uuid.uuid4()
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -160,7 +158,7 @@ class TestAnalyticsEndpoint:
 
     def test_session_export_json_endpoint_exists(self):
         from fastapi.testclient import TestClient
-        from app.main import app
+        from app.Main import app
 
         sid = uuid.uuid4()
         with TestClient(app, raise_server_exceptions=False) as client:

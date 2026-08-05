@@ -107,29 +107,40 @@ def decode_access_token(token: str) -> Dict[str, Any]:
 # Redis SET with TTL is used to efficiently manage blacklisted tokens across
 # multiple workers in production.
 
+from loguru import logger
 from app.core.Redis import get_redis
 
 async def blacklist_token(jti: str, exp: float) -> None:
     """Mark a token's *jti* as revoked until it would have expired anyway."""
     if not jti:
         return
-    ttl = max(int(exp - time.time()), 1)
-    client = get_redis()
-    await client.set(f"blacklist:{jti}", "1", ex=ttl)
+    try:
+        ttl = max(int(exp - time.time()), 1)
+        client = get_redis()
+        await client.set(f"blacklist:{jti}", "1", ex=ttl)
+    except Exception as exc:
+        logger.warning(f"Redis unavailable for blacklist_token: {exc}")
 
 
 async def is_token_blacklisted(jti: Optional[str]) -> bool:
     """Check whether *jti* has been revoked."""
     if not jti:
         return False
-    client = get_redis()
-    exists = await client.exists(f"blacklist:{jti}")
-    return bool(exists)
+    try:
+        client = get_redis()
+        exists = await client.exists(f"blacklist:{jti}")
+        return bool(exists)
+    except Exception as exc:
+        logger.warning(f"Redis unavailable for is_token_blacklisted: {exc}")
+        return False
 
 
 async def clear_blacklist() -> None:
     """Test helper: wipe the blacklist store."""
-    client = get_redis()
-    keys = await client.keys("blacklist:*")
-    if keys:
-        await client.delete(*keys)
+    try:
+        client = get_redis()
+        keys = await client.keys("blacklist:*")
+        if keys:
+            await client.delete(*keys)
+    except Exception as exc:
+        logger.warning(f"Redis unavailable for clear_blacklist: {exc}")

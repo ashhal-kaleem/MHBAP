@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import AsyncGenerator, List, Optional, Tuple
 
 from fastapi import Depends, HTTPException, Request, status, Query, WebSocket, WebSocketException
-from fastapi.Security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.Security import decode_access_token, is_token_blacklisted

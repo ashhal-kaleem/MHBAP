@@ -6,7 +6,7 @@ Handles both Content-Length header and chunked transfer encoding (no header).
 """
 from __future__ import annotations
 
-from starlette.middleware.Base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
@@ -40,12 +40,25 @@ class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
         else:
             # Slow path: chunked or unknown — count bytes as they arrive
             received = 0
-            async for chunk in request.Stream():
+            body_chunks = []
+            async for chunk in request.stream():
                 received += len(chunk)
                 if received > self._max:
                     return Response(
                         f"Request body too large (max {self._max // 1024 // 1024} MB)",
                         status_code=413,
                     )
+                body_chunks.append(chunk)
+
+            # Re-inject collected body so downstream endpoints can read it
+            full_body = b"".join(body_chunks)
+            sent = False
+            async def _receive():
+                nonlocal sent
+                if not sent:
+                    sent = True
+                    return {"type": "http.request", "body": full_body, "more_body": False}
+                return {"type": "http.request", "body": b"", "more_body": False}
+            request._receive = _receive
 
         return await call_next(request)

@@ -38,10 +38,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-secret-key-replace-in-production"
     DEBUG: bool = False  # safe default — enable explicitly in development
 
-    # ── Database ─────────────────────────────────────────────────────────────
-    # No default credentials — must be supplied via environment or .env file.
-    DATABASE_URL: str = "postgresql+asyncpg://mhbap:changeme@localhost:5432/mhbap"
-    DATABASE_SYNC_URL: str = "postgresql://mhbap:changeme@localhost:5432/mhbap"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./mhbap.db"
+    DATABASE_SYNC_URL: str = "sqlite:///./mhbap.db"
     # ── Redis ─────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
 

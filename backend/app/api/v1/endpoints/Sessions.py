@@ -25,7 +25,7 @@ from app.schemas.Session import (
     SessionStats,
     SessionUpdate,
 )
-from app.services import session_service
+from app.services import SessionService as session_service
 
 router = APIRouter()
 
@@ -42,6 +42,20 @@ async def create_session(
     return SessionRead.model_validate(session)
 
 
+@router.get("/User/{user_id}", response_model=list[SessionRead])
+@router.get("/user/{user_id}", response_model=list[SessionRead], include_in_schema=False)
+async def list_user_sessions(
+    user_id: uuid.UUID,
+    limit: int = Query(default=50, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user_id: str = Depends(get_current_user),
+) -> list[SessionRead]:
+    if str(user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
+    sessions = await session_service.list_sessions_for_user(db, user_id, limit)
+    return [SessionRead.model_validate(s) for s in sessions]
+
+
 @router.get("/{session_id}", response_model=SessionRead)
 async def read_session(
     session_id: uuid.UUID,
@@ -54,19 +68,6 @@ async def read_session(
     if str(session.user_id) != current_user_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this resource")
     return SessionRead.model_validate(session)
-
-
-@router.get("/User/{user_id}", response_model=list[SessionRead])
-async def list_user_sessions(
-    user_id: uuid.UUID,
-    limit: int = Query(default=50, ge=1, le=500),
-    db: AsyncSession = Depends(get_db),
-    current_user_id: str = Depends(get_current_user),
-) -> list[SessionRead]:
-    if str(user_id) != current_user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this resource")
-    sessions = await session_service.list_sessions_for_user(db, user_id, limit)
-    return [SessionRead.model_validate(s) for s in sessions]
 
 
 @router.patch("/{session_id}", response_model=SessionRead)

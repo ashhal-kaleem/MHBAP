@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.Main import app
 from app.api.v1.endpoints.Stream import (
     _make_demo_prediction,
     _softmax,
@@ -32,11 +32,17 @@ from app.api.v1.endpoints.Stream import (
 
 @pytest.fixture(scope="module")
 def client():
+    from unittest.mock import AsyncMock, patch
     from app.api.Dependencies import get_ws_current_user
-    app.dependency_overrides[get_ws_current_user] = lambda: "fake-user-id"
-    with TestClient(app, raise_server_exceptions=False) as c:
-        yield c
-    app.dependency_overrides.clear()
+
+    mock_session = AsyncMock()
+    mock_session.user_id = "fake-user-id"
+
+    with patch("app.services.SessionService.get_session", new=AsyncMock(return_value=mock_session)):
+        app.dependency_overrides[get_ws_current_user] = lambda: "fake-user-id"
+        with TestClient(app, raise_server_exceptions=False) as c:
+            yield c
+        app.dependency_overrides.clear()
 
 
 # ── unit: helpers ─────────────────────────────────────────────────────────
@@ -135,7 +141,7 @@ class TestConnectionCap:
         from app.core.StreamBus import publish
         import threading, time
 
-        sid = "cap-test-session-0001"
+        sid = "00000000-0000-0000-0000-000000000002"
         before = _client_counts.get(sid, 0)
 
         def _end():
@@ -164,7 +170,7 @@ class TestConnectionCap:
 class TestRedisStreamBusFallback:
     def test_publish_falls_back_to_inprocess_when_redis_unavailable(self):
         """When Redis is unavailable the bus should publish to in-process bus."""
-        import app.core.Redis_stream_bus as bus_mod
+        import app.core.RedisStreamBus as bus_mod
         import app.core.StreamBus as inproc
 
         received = []

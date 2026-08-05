@@ -182,7 +182,14 @@ export async function exportUserCsv(userId: string): Promise<void> {
 
 // Health
 export const getHealth = () =>
-  json<{ status: string; db: string; redis: string }>('/health/ready')
+  json<{ status: string; database: string; redis: string }>('/health/ready')
+
+// Evaluation
+export const getBenchmark = (nSamples = 1000) =>
+  json<any>(`/evaluation/benchmark?n_samples=${nSamples}`)
+
+export const getAblation = (nSamples = 500) =>
+  json<any>(`/evaluation/ablation?n_samples=${nSamples}`)
 
 // Runner Control
 export const startRunner = (sessionId: string) =>

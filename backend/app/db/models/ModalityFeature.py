@@ -10,8 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, String, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import DateTime, Float, ForeignKey, Index, JSON, String, UUID, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.Base import Base
@@ -30,7 +29,7 @@ class ModalityFeature(Base):
     modality: Mapped[str] = mapped_column(String(32), primary_key=True)
     # one of: face, gaze, head_pose, body_pose, voice, hci
 
-    feature_vector: Mapped[dict] = mapped_column(JSONB)
+    feature_vector: Mapped[dict] = mapped_column(JSON)
     quality: Mapped[float] = mapped_column(Float, default=1.0)  # 0=missing/occluded
 
     session: Mapped["Session"] = relationship(back_populates="features")

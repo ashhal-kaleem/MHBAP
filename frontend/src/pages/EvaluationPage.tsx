@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { BenchmarkResponse, AblationStudyResponse, EvaluationReport } from '@/types/evaluation'
-
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+import { getBenchmark, getAblation } from '@/services/api'
 
 function pct(v: number) { return `${(v * 100).toFixed(1)}%` }
 function fmt(v: number) { return v.toFixed(4) }
@@ -66,9 +65,8 @@ export default function EvaluationPage() {
   async function fetchBenchmark() {
     setLoading('bench'); setError(null)
     try {
-      const res = await fetch(`${API}/api/v1/evaluation/benchmark?n_samples=1000`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setBenchmark(await res.json())
+      const data = await getBenchmark(1000)
+      setBenchmark(data)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed')
     } finally { setLoading(null) }
@@ -77,9 +75,8 @@ export default function EvaluationPage() {
   async function fetchAblation() {
     setLoading('ablation'); setError(null)
     try {
-      const res = await fetch(`${API}/api/v1/evaluation/ablation?n_samples=500`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setAblation(await res.json())
+      const data = await getAblation(500)
+      setAblation(data)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed')
     } finally { setLoading(null) }

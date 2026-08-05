@@ -38,10 +38,10 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from loguru import logger
 
-from app.core.Redis_stream_bus import subscribe as redis_subscribe, publish as redis_publish
+from app.core.RedisStreamBus import subscribe as redis_subscribe, publish as redis_publish, _probe_redis
 from app.api.Dependencies import get_ws_current_user  # used by live session stream only
 from app.db.Session import get_session_factory
-from app.services import session_service
+from app.services import SessionService as session_service
 
 router = APIRouter()
 
@@ -187,6 +187,7 @@ async def _send_frame(ws: WebSocket, frame_type: str, payload) -> None:
 # ── WebSocket: live session stream ────────────────────────────────────────
 
 @router.websocket("/Session/{session_id}")
+@router.websocket("/session/{session_id}")
 async def ws_session_stream(
     websocket: WebSocket,
     session_id: str,

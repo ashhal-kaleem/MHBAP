@@ -34,7 +34,7 @@ from ml.DataWriter import DataWriter
 from ml.fusion.Predictor import BehaviourPredictor, PredictionResult
 from ml.xai.ShapExplainer import SHAPExplainer
 from ml.xai.NlExplainer import generate_explanation
-from app.core.Redis_stream_bus import publish as _bus_publish
+from app.core.RedisStreamBus import publish as _bus_publish
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +135,8 @@ class SessionRunner:
             "voice": voice_feats, "hci": hci_feats,
         }
         prediction = self._predictor.predict(feature_dicts, bgr_frame=frame)
-        if prediction.FeatureVector is not None:
-            shap = self._explainer.explain(prediction.FeatureVector)
+        if prediction.feature_vector is not None:
+            shap = self._explainer.explain(prediction.feature_vector)
             self.latest_shap = shap.get("stress", {})
             self.latest_explanation = generate_explanation(
                 prediction, self.latest_shap, head="stress"

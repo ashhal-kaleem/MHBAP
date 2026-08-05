@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 
 from app.schemas.Session import SessionCreate, SessionContextUpdate, SessionUpdate
-from app.services import session_service
+from app.services import SessionService as session_service
 
 
 @pytest.mark.asyncio

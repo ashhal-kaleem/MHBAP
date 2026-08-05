@@ -44,10 +44,10 @@ def _noop_rate_limit(limit=10, window_seconds=60):
 
 @pytest.fixture(scope="module")
 def client():
-    from tests.unit.fake_redis import FakeRedis
+    from tests.unit.FakeRedis import FakeRedis
     
     with (
-        patch("app.api.v1.endpoints.Auth.RateLimit", side_effect=_noop_rate_limit),
+        patch("app.api.v1.endpoints.Auth.rate_limit", side_effect=_noop_rate_limit),
         patch("app.core.RateLimit.get_redis", return_value=FakeRedis()),
     ):
         app = _make_app()
@@ -144,7 +144,7 @@ class TestRefresh:
         from app.api.Dependencies import get_current_user
 
         with patch(
-            "app.api.v1.endpoints.Auth.RateLimit",
+            "app.api.v1.endpoints.Auth.rate_limit",
             side_effect=_noop_rate_limit,
         ):
             app = _make_app()
@@ -166,7 +166,7 @@ class TestMe:
         from app.api.Dependencies import get_current_user
 
         with patch(
-            "app.api.v1.endpoints.Auth.RateLimit",
+            "app.api.v1.endpoints.Auth.rate_limit",
             side_effect=_noop_rate_limit,
         ):
             app = _make_app()
@@ -187,7 +187,7 @@ class TestMe:
         from app.api.Dependencies import get_current_user
 
         with patch(
-            "app.api.v1.endpoints.Auth.RateLimit",
+            "app.api.v1.endpoints.Auth.rate_limit",
             side_effect=_noop_rate_limit,
         ):
             app = _make_app()

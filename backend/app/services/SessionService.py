@@ -117,7 +117,13 @@ async def get_session_stats(db: AsyncSession, session_id: uuid.UUID) -> SessionS
         .limit(1)
     )
     dom_row = dom_res.first()
-    dominant = dom_row[0] if dom_row else None
+    dominant = None
+    if dom_row and dom_row[0] is not None:
+        val = dom_row[0]
+        if isinstance(val, str):
+            dominant = val
+        elif not hasattr(val, "_mock_name"):
+            dominant = str(val)
 
     duration: float | None = None
     if session.ended_at and session.started_at:

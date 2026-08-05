@@ -7,7 +7,7 @@ from fastapi import FastAPI, Depends
 from fastapi.testclient import TestClient
 
 from app.core.RateLimit import _sliding_window_check, rate_limit
-from tests.unit.fake_redis import FakeRedis
+from tests.unit.FakeRedis import FakeRedis
 
 _fake_redis = FakeRedis()
 

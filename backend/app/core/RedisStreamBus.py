@@ -81,7 +81,7 @@ async def publish(session_id: str, message: Any) -> None:
             global _last_probe_time
             _last_probe_time = 0.0
     # fallback
-    from app.core import stream_bus
+    from app.core import StreamBus as stream_bus
     stream_bus.publish(session_id, message)
 
 
@@ -109,7 +109,7 @@ async def subscribe(session_id: str, maxsize: int = 128) -> AsyncIterator[asynci
                 pass
     else:
         # in-process fallback
-        from app.core import stream_bus
+        from app.core import StreamBus as stream_bus
         q = stream_bus.subscribe(session_id, maxsize=maxsize)
         try:
             yield q

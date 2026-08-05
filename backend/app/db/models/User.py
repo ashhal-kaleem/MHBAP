@@ -9,8 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, String, UUID, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.Base import Base

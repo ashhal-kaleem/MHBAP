@@ -60,7 +60,7 @@ from app.api.Dependencies import (
     RUNNER_ALLOWED_ROLES,
 )
 from app.core.Security import create_access_token, decode_access_token, blacklist_token, clear_blacklist
-from tests.unit.fake_redis import FakeRedis
+from tests.unit.FakeRedis import FakeRedis
 
 _fake_redis = FakeRedis()
 

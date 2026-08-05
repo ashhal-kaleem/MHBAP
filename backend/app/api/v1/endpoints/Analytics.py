@@ -16,12 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.Dependencies import get_current_user
 from app.db.Session import get_db
 from app.schemas.Analytics import UserAnalytics
-from app.services import analytics_service
+from app.services import AnalyticsService as analytics_service
 
 router = APIRouter()
 
 
 @router.get("/User/{user_id}", response_model=UserAnalytics)
+@router.get("/user/{user_id}", response_model=UserAnalytics, include_in_schema=False)
 async def user_analytics(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -38,6 +39,7 @@ async def user_analytics(
 
 
 @router.get("/User/{user_id}/export/csv")
+@router.get("/user/{user_id}/export/csv", include_in_schema=False)
 async def export_user_csv(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),

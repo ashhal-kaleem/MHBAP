@@ -12,8 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, String, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import DateTime, Float, ForeignKey, Index, JSON, String, UUID, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.Base import Base
@@ -31,14 +30,14 @@ class Prediction(Base):
     )
 
     emotion_label: Mapped[str] = mapped_column(String(32))
-    emotion_scores: Mapped[dict] = mapped_column(JSONB)
+    emotion_scores: Mapped[dict] = mapped_column(JSON)
 
     stress: Mapped[float] = mapped_column(Float)
     engagement: Mapped[float] = mapped_column(Float)
     attention: Mapped[float] = mapped_column(Float)
     fatigue: Mapped[float] = mapped_column(Float)
 
-    shap_weights: Mapped[dict] = mapped_column(JSONB, default=dict)
+    shap_weights: Mapped[dict] = mapped_column(JSON, default=dict)
     explanation_text: Mapped[str] = mapped_column(String(512), default="")
 
     session: Mapped["Session"] = relationship(back_populates="predictions")

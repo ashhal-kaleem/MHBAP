@@ -1,15 +1,15 @@
 """API v1 router — aggregates all endpoint modules."""
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    analytics,
-    auth,
-    evaluation,
-    health,
-    predictions,
-    runner,
-    sessions,
-    stream,
-    users,
+    Analytics as analytics,
+    Auth as auth,
+    Evaluation as evaluation,
+    Health as health,
+    Predictions as predictions,
+    Runner as runner,
+    Sessions as sessions,
+    Stream as stream,
+    Users as users,
 )
 
 router = APIRouter()

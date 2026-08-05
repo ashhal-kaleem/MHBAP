@@ -37,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.Session import get_db
 from app.api.Dependencies import require_roles, RUNNER_ALLOWED_ROLES
-from app.services import session_service
+from app.services import SessionService as session_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -94,6 +94,7 @@ def _task_done_callback(session_id: str, task: asyncio.Task) -> None:
 # ── endpoints ──────────────────────────────────────────────────────────────
 
 @router.post("/Session/{session_id}/start", response_model=RunnerStatus, status_code=202)
+@router.post("/session/{session_id}/start", response_model=RunnerStatus, status_code=202, include_in_schema=False)
 async def start_runner(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -131,6 +132,7 @@ async def start_runner(
 
 
 @router.post("/Session/{session_id}/stop", response_model=RunnerStatus)
+@router.post("/session/{session_id}/stop", response_model=RunnerStatus, include_in_schema=False)
 async def stop_runner(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -172,6 +174,7 @@ async def stop_runner(
 
 
 @router.get("/Session/{session_id}/status", response_model=RunnerStatus)
+@router.get("/session/{session_id}/status", response_model=RunnerStatus, include_in_schema=False)
 async def runner_status(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),

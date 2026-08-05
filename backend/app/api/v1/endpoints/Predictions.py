@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.Dependencies import get_current_user
 from app.db.Session import get_db
 from app.schemas.Prediction import PredictionCreate, PredictionRead, XAISummary
-from app.services import prediction_service, session_service
+from app.services import PredictionService as prediction_service, SessionService as session_service
 
 router = APIRouter()
 
