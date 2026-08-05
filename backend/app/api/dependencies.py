@@ -90,7 +90,7 @@ async def get_ws_current_user(
     return user_id
 
 
-def get_optional_user(
+async def get_optional_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
 ) -> Optional[str]:
@@ -99,6 +99,9 @@ def get_optional_user(
         return None
     try:
         payload = decode_access_token(credentials.credentials)
+        # Check blacklist — same as get_current_user; revoked tokens return None
+        if await is_token_blacklisted(payload.get("jti")):
+            return None
         user_id = payload.get("sub")
         if user_id:
             request.state.user_id = user_id

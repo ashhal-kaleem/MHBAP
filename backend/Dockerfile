@@ -62,6 +62,9 @@ WORKDIR /app
 # FastAPI application source
 COPY backend/ .
 
+# Entrypoint script (runs alembic then uvicorn)
+RUN chmod +x /app/entrypoint.sh
+
 # ML package: SessionRunner, all pipelines, TCMT, EmotionRecognizer, weights.
 # Placed at /ml so benchmark.py's _REPO_ROOT path resolution works:
 #   /app/app/evaluation/benchmark.py  →  parent×4  =  /

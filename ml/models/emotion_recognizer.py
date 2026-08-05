@@ -58,10 +58,11 @@ class EmotionRecognizer:
         self._model = None
         self._transform = None
         self._ready = False
-        self._load(auto_download)
+        self._auto_download = auto_download
+        self._load()  # sync — no download here
 
     # ------------------------------------------------------------------
-    def _load(self, auto_download: bool) -> None:
+    def _load(self) -> None:
         try:
             import torch
             import timm
@@ -70,15 +71,12 @@ class EmotionRecognizer:
             return
 
         if not CHECKPOINT.exists():
-            if auto_download:
-                self._download_checkpoint()
-            if not CHECKPOINT.exists():
-                logger.warning(
-                    "EmotiEffNet checkpoint not found at %s. "
-                    "Run `python scripts/download_models.py --model emotion` to download. "
-                    "Using random-uniform fallback.", CHECKPOINT
-                )
-                return
+            logger.info(
+                "EmotiEffNet checkpoint not found at %s. "
+                "Call await recognizer.ensure_checkpoint() or run "
+                "`python scripts/download_models.py --model emotion`.", CHECKPOINT
+            )
+            return
 
         try:
             import torch
@@ -130,13 +128,22 @@ class EmotionRecognizer:
         except Exception as exc:
             logger.error("EmotionRecognizer failed to load checkpoint: %s", exc)
 
-    def _download_checkpoint(self) -> None:
-        """Try to auto-download the checkpoint from GitHub."""
+    async def ensure_checkpoint(self) -> None:
+        """Async: download checkpoint if absent, then reload model (non-blocking)."""
+        if not CHECKPOINT.exists() and self._auto_download:
+            await self._download_checkpoint()
+        if not self._ready and CHECKPOINT.exists():
+            self._load()  # model load is CPU-bound but fast; OK on async path
+
+    async def _download_checkpoint(self) -> None:
+        """Try to auto-download the checkpoint from GitHub (non-blocking)."""
+        import asyncio
         import urllib.request
         WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
         logger.info("Downloading EmotiEffNet checkpoint from GitHub (~16 MB) …")
         try:
-            urllib.request.urlretrieve(DOWNLOAD_URL, str(CHECKPOINT))
+            # Run in thread pool — urlretrieve is blocking I/O
+            await asyncio.to_thread(urllib.request.urlretrieve, DOWNLOAD_URL, str(CHECKPOINT))
             logger.info("Checkpoint saved to %s", CHECKPOINT)
         except Exception as exc:
             logger.warning("Auto-download failed: %s", exc)

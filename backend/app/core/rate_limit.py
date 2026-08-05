@@ -108,12 +108,23 @@ async def _sliding_window_check(key: str, limit: int, window_seconds: int) -> Tu
 
 # ── Dependency factories ──────────────────────────────────────────────────────
 
+def _get_client_ip(request: Request) -> str:
+    """Extract real client IP, honouring X-Forwarded-For / X-Real-IP proxy headers."""
+    # X-Forwarded-For: client, proxy1, proxy2 — take leftmost (real client)
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "unknown"
+
 def rate_limit(limit: int = 60, window_seconds: int = 60):
     """
-    FastAPI dependency: rate-limit by client IP.
+    FastAPI dependency: rate-limit by real client IP (proxy-aware).
     """
     async def _dep(request: Request):
-        ip = request.client.host if request.client else "unknown"
+        ip = _get_client_ip(request)
         key = f"rl:{ip}:{request.url.path}"
         remaining, _ = await _sliding_window_check(key, limit, window_seconds)
         request.state.ratelimit_remaining = remaining
@@ -123,12 +134,12 @@ def rate_limit(limit: int = 60, window_seconds: int = 60):
 
 def rate_limit_user(limit: int = 120, window_seconds: int = 60):
     """
-    FastAPI dependency: rate-limit by authenticated user_id (falls back to IP).
+    FastAPI dependency: rate-limit by authenticated user_id (falls back to real IP).
     Must be placed after an auth dependency that sets request.state.user_id.
     """
     async def _dep(request: Request):
         user_id = getattr(request.state, "user_id", None)
-        key_part = f"user:{user_id}" if user_id else f"ip:{request.client.host}"
+        key_part = f"user:{user_id}" if user_id else f"ip:{_get_client_ip(request)}"
         key = f"rl:{key_part}:{request.url.path}"
         await _sliding_window_check(key, limit, window_seconds)
 

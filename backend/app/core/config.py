@@ -8,8 +8,16 @@ from __future__ import annotations
 import json
 from typing import List
 
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_INSECURE_KEYS = {
+    "dev-secret-key-replace-in-production",
+    "changeme_in_production",
+    "secret",
+    "changeme",
+    "replace_with_a_long_random_string",
+}
 
 
 class Settings(BaseSettings):
@@ -25,11 +33,11 @@ class Settings(BaseSettings):
     APP_NAME: str = "MHBAP"
     APP_VERSION: str = "0.1.0"
     SECRET_KEY: str = "dev-secret-key-replace-in-production"
-    DEBUG: bool = True
+    DEBUG: bool = False  # safe default — enable explicitly in development
 
     # ── Database ─────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://mhbap:mhbap@localhost:5432/mhbap"
-    DATABASE_SYNC_URL: str = "postgresql://mhbap:mhbp2625@postgres:5432/mhbap"
+    DATABASE_URL: str = "postgresql+asyncpg://mhbap:mhbp2625@localhost:5432/mhbap"
+    DATABASE_SYNC_URL: str = "postgresql://mhbap:mhbp2625@localhost:5432/mhbap"
     # ── Redis ─────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379/0"
 
@@ -48,6 +56,15 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return json.loads(v)
         return v
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        if self.APP_ENV == "production":
+            if self.SECRET_KEY in _INSECURE_KEYS or len(self.SECRET_KEY) < 32:
+                raise ValueError(
+                    "SECRET_KEY is insecure. Set a random string of ≥32 chars in .env"
+                )
+        return self
 
 
 settings = Settings()

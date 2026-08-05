@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { User } from '@/types'
 
-const USER_ID_KEY  = 'mhbap_user_id'
-const TOKEN_KEY    = 'mhbap_token'
-const EMAIL_KEY    = 'mhbap_email'
+const USER_ID_KEY = 'mhbap_user_id'
+const TOKEN_KEY = 'mhbap_token'
+const EMAIL_KEY = 'mhbap_email'
 const PASSWORD_KEY = 'mhbap_password'
 
 const BASE = '/api/v1'
@@ -34,7 +34,7 @@ function generatePassword(): string {
  * authenticated request.
  */
 export function useCurrentUser() {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<CurrentUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -74,7 +74,7 @@ export function useCurrentUser() {
         }
 
         // ── Step 2: re-login with stored credentials ──────────────────────
-        const storedEmail    = localStorage.getItem(EMAIL_KEY)
+        const storedEmail = localStorage.getItem(EMAIL_KEY)
         const storedPassword = localStorage.getItem(PASSWORD_KEY)
         if (storedEmail && storedPassword) {
           try {
@@ -105,8 +105,8 @@ export function useCurrentUser() {
         }
 
         // ── Step 3: register a fresh guest account ────────────────────────
-        const suffix   = randomSuffix()
-        const email    = `guest-${suffix}@mhbap.example`
+        const suffix = randomSuffix()
+        const email = `guest-${suffix}@mhbap.example`
         const password = generatePassword()
 
         const regRes = await fetch(`${BASE}/auth/register`, {
@@ -120,9 +120,9 @@ export function useCurrentUser() {
         }
         const { access_token, user_id } = await regRes.json()
 
-        localStorage.setItem(TOKEN_KEY,    access_token)
-        localStorage.setItem(USER_ID_KEY,  user_id)
-        localStorage.setItem(EMAIL_KEY,    email)
+        localStorage.setItem(TOKEN_KEY, access_token)
+        localStorage.setItem(USER_ID_KEY, user_id)
+        localStorage.setItem(EMAIL_KEY, email)
         localStorage.setItem(PASSWORD_KEY, password)
 
         const userRes = await fetch(`${BASE}/users/${user_id}`, {

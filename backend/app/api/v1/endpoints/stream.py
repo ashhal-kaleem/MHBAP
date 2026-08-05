@@ -51,7 +51,59 @@ def _queue_recv_timeout() -> float:
     return float(os.environ.get("MHBAP_WS_RECV_TIMEOUT", "60"))
 
 # Track active client count per session for the cap
+# In-process fallback used when Redis unavailable (single-worker only)
 _client_counts: dict[str, int] = defaultdict(int)
+
+_WS_CAP_PREFIX = "mhbap:ws:cap"
+_WS_CAP_TTL    = 3600  # 1 hour — auto-expire stale keys if worker crashes
+
+
+async def _ws_count_incr(session_id: str) -> int:
+    """Atomically increment WS connection count. Returns new count."""
+    if await _probe_redis():
+        try:
+            from app.core.redis import get_redis
+            r = get_redis()
+            key = f"{_WS_CAP_PREFIX}:{session_id}"
+            count = await r.incr(key)
+            await r.expire(key, _WS_CAP_TTL)
+            return int(count)
+        except Exception:
+            pass  # fall through to in-process
+    _client_counts[session_id] += 1
+    return _client_counts[session_id]
+
+
+async def _ws_count_decr(session_id: str) -> int:
+    """Atomically decrement WS connection count. Returns new count (min 0)."""
+    if await _probe_redis():
+        try:
+            from app.core.redis import get_redis
+            r = get_redis()
+            key = f"{_WS_CAP_PREFIX}:{session_id}"
+            count = await r.decr(key)
+            count = max(0, int(count))
+            if count == 0:
+                await r.delete(key)
+            return count
+        except Exception:
+            pass
+    _client_counts[session_id] = max(0, _client_counts[session_id] - 1)
+    if _client_counts[session_id] == 0:
+        del _client_counts[session_id]
+    return _client_counts[session_id]
+
+
+async def _ws_count_get(session_id: str) -> int:
+    """Get current WS connection count."""
+    if await _probe_redis():
+        try:
+            from app.core.redis import get_redis
+            val = await get_redis().get(f"{_WS_CAP_PREFIX}:{session_id}")
+            return int(val) if val else 0
+        except Exception:
+            pass
+    return _client_counts[session_id]
 
 # ── helpers ───────────────────────────────────────────────────────────────
 EMOTION_LABELS = [
@@ -135,20 +187,38 @@ async def ws_session_stream(
 ) -> None:
     """
     Subscribe to a running session's prediction stream.
-    Closes with code 1008 (policy violation) if the per-session cap is hit.
-    Sends ping frames every PING_INTERVAL_SECONDS to prevent proxy timeouts.
+    Validates session_id as UUID and enforces ownership before accepting.
+    Closes with code 1008 (policy violation) if cap hit or not authorized.
     """
-    # Connection cap
-    if _client_counts[session_id] >= MAX_CLIENTS_PER_SESSION:
+    # Validate session_id is a real UUID — prevents arbitrary Redis channel injection
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        await websocket.close(code=1008, reason="Invalid session_id")
+        return
+
+    # Ownership check BEFORE accept() — fetch session from DB
+    async with get_session_factory()() as db:
+        session = await session_service.get_session(db, session_uuid)
+    if session is None:
+        await websocket.close(code=1008, reason="Session not found")
+        return
+    if str(session.user_id) != user_id:
+        await websocket.close(code=1008, reason="Not authorized")
+        logger.warning(f"WS rejected (ownership) session={session_id} user={user_id}")
+        return
+
+    # Connection cap — Redis-backed for multi-worker correctness
+    current = await _ws_count_get(session_id)
+    if current >= MAX_CLIENTS_PER_SESSION:
         await websocket.close(code=1008, reason="Connection limit reached")
-        logger.warning(f"WS rejected (cap hit) session={session_id}")
+        logger.warning(f"WS rejected (cap hit) session={session_id} count={current}")
         return
 
     await websocket.accept()
-    _client_counts[session_id] += 1
+    total = await _ws_count_incr(session_id)
     client_id = str(uuid.uuid4())[:8]
-    logger.info(f"WS connected session={session_id} client={client_id} "
-                f"total={_client_counts[session_id]}")
+    logger.info(f"WS connected session={session_id} client={client_id} total={total}")
 
     await _send_frame(websocket, "session_start", {"session_id": session_id})
 
@@ -182,10 +252,8 @@ async def ws_session_stream(
         logger.error(f"WS error session={session_id} client={client_id}: {exc}")
         await _send_frame(websocket, "error", {"message": str(exc)})
     finally:
-        _client_counts[session_id] = max(0, _client_counts[session_id] - 1)
-        if _client_counts[session_id] == 0:
-            del _client_counts[session_id]
-        logger.info(f"WS cleanup session={session_id} client={client_id}")
+        remaining = await _ws_count_decr(session_id)
+        logger.info(f"WS cleanup session={session_id} client={client_id} remaining={remaining}")
 
 
 async def _ping_loop(ws: WebSocket) -> None:

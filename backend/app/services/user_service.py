@@ -19,8 +19,15 @@ from app.schemas.user import UserCreate
 
 
 async def create_user(db: AsyncSession, data: UserCreate) -> User:
-    """Create a user record (legacy path — no password hashing)."""
-    user = User(**data.model_dump())
+    """Create a user record (legacy path — role and is_active server-assigned)."""
+    user = User(
+        username=data.username,
+        email=data.email,
+        display_name=data.display_name or data.username,
+        hashed_password="",  # no password on legacy path
+        role="participant",  # always server-assigned, never from caller
+        is_active=True,
+    )
     db.add(user)
     await db.commit()
     await db.refresh(user)

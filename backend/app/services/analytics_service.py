@@ -136,12 +136,17 @@ async def get_user_analytics(db: AsyncSession, user_id: uuid.UUID) -> UserAnalyt
     )
 
 
-async def export_user_csv(db: AsyncSession, user_id: uuid.UUID) -> str:
+async def export_user_csv_stream(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> "AsyncGenerator[str, None]":
     """
-    Returns a CSV string of all predictions across all user sessions.
-    Columns: session_id, context, started_at, time, emotion_label,
-             stress, engagement, attention, fatigue, explanation_text
+    Async generator that yields CSV lines one at a time.
+    Uses yield_per(500) to avoid loading all predictions into RAM.
+    Suitable for large research sessions (thousands of predictions).
     """
+    from typing import AsyncGenerator
+
     sess_result = await db.execute(
         select(Session).where(Session.user_id == user_id).order_by(Session.started_at.asc())
     )
@@ -150,24 +155,38 @@ async def export_user_csv(db: AsyncSession, user_id: uuid.UUID) -> str:
     started_map = {s.id: s.started_at for s in sessions}
     session_ids = [s.id for s in sessions]
 
-    buf = io.StringIO()
-    buf.write("session_id,context,session_started_at,time,emotion_label,"
-              "stress,engagement,attention,fatigue,explanation_text\n")
+    # Header
+    yield ("session_id,context,session_started_at,time,emotion_label,"
+           "stress,engagement,attention,fatigue,explanation_text\n")
 
-    if session_ids:
-        pred_result = await db.execute(
-            select(Prediction)
-            .where(Prediction.session_id.in_(session_ids))
-            .order_by(Prediction.session_id, Prediction.time)
-        )
-        for p in pred_result.scalars().all():
+    if not session_ids:
+        return
+
+    # Stream predictions in batches of 500 rows — never loads all into RAM
+    stmt = (
+        select(Prediction)
+        .where(Prediction.session_id.in_(session_ids))
+        .order_by(Prediction.session_id, Prediction.time)
+        .execution_options(yield_per=500)
+    )
+    result = await db.stream(stmt)
+    async for partition in result.partitions(500):
+        for row in partition:
+            p = row[0]
             ctx = context_map.get(p.session_id, "").replace('"', "'")
             exp = (p.explanation_text or "").replace('"', "'")
             started = started_map.get(p.session_id, "")
-            buf.write(
+            yield (
                 f'{p.session_id},"{ctx}",{started},{p.time.isoformat()},'
                 f'{p.emotion_label},{p.stress:.4f},{p.engagement:.4f},'
                 f'{p.attention:.4f},{p.fatigue:.4f},"{exp}"\n'
             )
 
-    return buf.getvalue()
+
+# Keep legacy name for backward compatibility — delegates to streaming version
+async def export_user_csv(db: AsyncSession, user_id: uuid.UUID) -> str:
+    """Legacy: returns full CSV as string. Use export_user_csv_stream for large exports."""
+    lines = []
+    async for line in export_user_csv_stream(db, user_id):
+        lines.append(line)
+    return "".join(lines)

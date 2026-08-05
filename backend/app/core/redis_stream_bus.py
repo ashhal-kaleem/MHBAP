@@ -37,6 +37,8 @@ logger = logging.getLogger(__name__)
 
 CHANNEL_PREFIX = "mhbap:stream"
 _redis_available: bool | None = None   # None = not yet probed
+_last_probe_time: float = 0.0
+_PROBE_INTERVAL = 60.0  # re-probe every 60s so recovered Redis is detected
 
 
 def _channel(session_id: str) -> str:
@@ -44,17 +46,23 @@ def _channel(session_id: str) -> str:
 
 
 async def _probe_redis() -> bool:
-    global _redis_available
-    if _redis_available is not None:
+    global _redis_available, _last_probe_time
+    import time
+    now = time.monotonic()
+    # Re-probe if: never probed, or last probe was >60s ago
+    if _redis_available is not None and (now - _last_probe_time) < _PROBE_INTERVAL:
         return _redis_available
     try:
         from app.core.redis import get_redis
         await get_redis().ping()
+        if _redis_available is not True:
+            logger.info("Redis available — using Redis pub/sub bus")
         _redis_available = True
-        logger.info("Redis available — using Redis pub/sub bus")
     except Exception as exc:
+        if _redis_available is not False:
+            logger.warning(f"Redis unavailable ({exc}) — falling back to in-process bus")
         _redis_available = False
-        logger.warning(f"Redis unavailable ({exc}) — falling back to in-process bus")
+    _last_probe_time = now
     return _redis_available
 
 
@@ -69,6 +77,9 @@ async def publish(session_id: str, message: Any) -> None:
             return
         except Exception as exc:
             logger.error(f"Redis publish failed ({exc}), falling back to in-process")
+            # Force re-probe next time instead of staying stuck on broken connection
+            global _last_probe_time
+            _last_probe_time = 0.0
     # fallback
     from app.core import stream_bus
     stream_bus.publish(session_id, message)

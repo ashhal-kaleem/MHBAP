@@ -35,6 +35,43 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// ── Auth ──────────────────────────────────────────────────────────────────────
+interface TokenResponse { access_token: string; token_type: string; user_id: string }
+
+export async function register(email: string, password: string, display_name = ''): Promise<TokenResponse> {
+  const res = await fetch(`${BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, display_name }),
+  })
+  if (!res.ok) throw new Error(`Register failed ${res.status}: ${await res.text()}`)
+  const data: TokenResponse = await res.json()
+  setStoredToken(data.access_token, data.user_id)
+  return data
+}
+
+export async function login(email: string, password: string): Promise<TokenResponse> {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) throw new Error(`Login failed ${res.status}: ${await res.text()}`)
+  const data: TokenResponse = await res.json()
+  setStoredToken(data.access_token, data.user_id)
+  return data
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await json<void>('/auth/logout', { method: 'POST' })
+  } finally {
+    clearStoredToken()
+  }
+}
+
+export const getMe = () => json<{ user_id: string; email: string; display_name: string; role: string }>('/auth/me')
+
 // Users
 export const createUser = (username: string, email: string, role = 'participant') =>
   json<User>('/users/', {

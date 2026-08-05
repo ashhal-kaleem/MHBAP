@@ -89,3 +89,4 @@ docs/_build/
 frontend/dist/
 frontend/node_modules/
 frontend/.env.local
+docker/docker-compose.yml.bak

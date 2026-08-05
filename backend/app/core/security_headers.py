@@ -25,14 +25,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = (
-            "camera=(), microphone=(), geolocation=()"
+            "camera=(self), microphone=(self), geolocation=()"
         )
         if not request.url.path.startswith(("/api/docs", "/api/redoc", "/api/openapi.json")):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline'; "
+                # unsafe-inline removed from script-src — use nonces for inline scripts if needed
+                "script-src 'self'; "
+                # style-src keeps unsafe-inline — React/Vite injects inline styles at runtime
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data: blob:; "
+                "media-src 'self' blob:; "
                 "connect-src 'self' ws: wss:;"
             )
         if self._production:

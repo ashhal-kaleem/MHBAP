@@ -45,14 +45,13 @@ async def export_user_csv(
 ) -> StreamingResponse:
     """
     Download all predictions across all sessions for a user as a single CSV.
-    Suitable for offline analysis / research publication.
+    Streams rows directly from DB — no full dataset loaded into RAM.
     """
     if str(user_id) != current_user_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this resource")
-    csv_content = await analytics_service.export_user_csv(db, user_id)
     filename = f"mhbap_user_{user_id}_all_sessions.csv"
     return StreamingResponse(
-        iter([csv_content]),
+        analytics_service.export_user_csv_stream(db, user_id),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

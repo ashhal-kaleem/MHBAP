@@ -34,7 +34,7 @@ from ml.fusion.tcmt import TCMT, EMOTION_CLASSES, _TORCH_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
-# AffectNet-8 labels (must match EmotionRecognizer.EMOTION_LABELS)
+# AffectNet-8 labels (used by EmotionRecognizer pretrained path)
 EMOTION_LABELS = [
     "neutral", "happy", "sad", "surprise",
     "fear", "disgust", "anger", "contempt",

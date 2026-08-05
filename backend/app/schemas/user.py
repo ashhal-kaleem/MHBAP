@@ -4,16 +4,17 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserCreate(BaseModel):
-    username: str
+    """Legacy schema used by unauthenticated POST /users/ (Phase 2).
+    hashed_password / role / is_active intentionally excluded —
+    those are server-assigned only.
+    """
+    username: str = Field(..., min_length=3, max_length=64)
     email: EmailStr
-    hashed_password: str = ""
     display_name: str = ""
-    role: str = "participant"
-    is_active: bool = True
 
 
 class UserRead(BaseModel):
@@ -23,6 +24,5 @@ class UserRead(BaseModel):
     username: str
     email: EmailStr
     display_name: str
-    role: str
-    is_active: bool
     created_at: datetime
+    # role and is_active intentionally omitted from public read schema

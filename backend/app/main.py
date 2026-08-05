@@ -83,6 +83,18 @@ def create_app() -> FastAPI:
     from app.api.v1 import router as v1_router
     app.include_router(v1_router, prefix="/api/v1")
 
+    # Global exception handler — never leak stack traces to clients
+    from fastapi import Request as _Request
+    from fastapi.responses import JSONResponse as _JSONResponse
+
+    @app.exception_handler(Exception)
+    async def _unhandled_exception_handler(request: _Request, exc: Exception) -> _JSONResponse:
+        logger.exception(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
+        return _JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
+
     return app
 
 
