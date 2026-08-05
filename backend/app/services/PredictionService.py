@@ -14,9 +14,16 @@ from app.db.models.Prediction import Prediction
 from app.schemas.Prediction import PredictionCreate
 
 
+from datetime import datetime, timezone
+
 async def create_prediction(db: AsyncSession, data: PredictionCreate) -> Prediction:
-    prediction = Prediction(**data.model_dump())
-    db.add(prediction)  # db.add is synchronous in SQLAlchemy 2.x
+    d = data.model_dump()
+    if d.get("id") is None:
+        d["id"] = uuid.uuid4()
+    if d.get("time") is None:
+        d["time"] = datetime.now(timezone.utc)
+    prediction = Prediction(**d)
+    db.add(prediction)
     await db.commit()
     await db.refresh(prediction)
     return prediction

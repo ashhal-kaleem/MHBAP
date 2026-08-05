@@ -9,6 +9,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.core.Security import create_access_token
 from app.db.Session import check_db_connection
 from app.Main import app
 
@@ -31,8 +32,13 @@ async def test_full_session_prediction_flow(client: AsyncClient) -> None:
     assert user_resp.status_code == 201
     user_id = user_resp.json()["id"]
 
+    token = create_access_token(subject=str(user_id))
+    headers = {"Authorization": f"Bearer {token}"}
+
     session_resp = await client.post(
-        "/api/v1/sessions/", json={"user_id": user_id, "context": "coding_task"}
+        "/api/v1/sessions/",
+        json={"user_id": user_id, "context": "coding_task"},
+        headers=headers,
     )
     assert session_resp.status_code == 201
     session_id = session_resp.json()["id"]
@@ -51,14 +57,15 @@ async def test_full_session_prediction_flow(client: AsyncClient) -> None:
             "shap_weights": {"hci": 0.5, "face": 0.3, "voice": 0.2},
             "explanation_text": "Engagement driven by steady typing rhythm.",
         },
+        headers=headers,
     )
     assert pred_resp.status_code == 201
 
-    latest = await client.get(f"/api/v1/predictions/session/{session_id}/latest")
+    latest = await client.get(f"/api/v1/predictions/session/{session_id}/latest", headers=headers)
     assert latest.status_code == 200
     assert latest.json()["emotion_label"] == "focused"
 
-    end_resp = await client.post(f"/api/v1/sessions/{session_id}/end")
+    end_resp = await client.post(f"/api/v1/sessions/{session_id}/end", headers=headers)
     assert end_resp.status_code == 200
     assert end_resp.json()["status"] == "completed"
     assert end_resp.json()["ended_at"] is not None

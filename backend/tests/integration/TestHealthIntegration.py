@@ -14,7 +14,8 @@ from app.Main import app
 
 
 async def _db_available() -> bool:
-    return await check_db_connection()
+    from app.core.Redis import check_redis_connection
+    return (await check_db_connection()) and (await check_redis_connection())
 
 
 @pytest_asyncio.fixture

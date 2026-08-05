@@ -37,6 +37,7 @@ async def create_prediction(
 
 
 @router.get("/Session/{session_id}", response_model=list[PredictionRead])
+@router.get("/session/{session_id}", response_model=list[PredictionRead], include_in_schema=False)
 async def list_session_predictions(
     session_id: uuid.UUID,
     since: Optional[datetime] = None,
@@ -56,6 +57,7 @@ async def list_session_predictions(
 
 
 @router.get("/Session/{session_id}/latest", response_model=PredictionRead)
+@router.get("/session/{session_id}/latest", response_model=PredictionRead, include_in_schema=False)
 async def latest_session_prediction(
     session_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),

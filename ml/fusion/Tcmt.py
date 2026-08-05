@@ -23,7 +23,7 @@ Design choices for research-grade MITACS presentation
 """
 from __future__ import annotations
 import math
-from typing import Dict
+from typing import Dict, Any
 import numpy as np
 
 try:
@@ -102,9 +102,10 @@ if _TORCH_AVAILABLE:
             self.head_attention  = nn.Linear(D_MODEL, 1)
             self.head_fatigue    = nn.Linear(D_MODEL, 1)
 
-        def forward(self, x) -> Dict[str, "torch.Tensor"]:
+        def forward(self, x) -> Dict[str, Any]:
             # Accept numpy arrays or torch tensors, shapes (B,F) or (B,T,F)
-            if isinstance(x, np.ndarray):
+            is_numpy = isinstance(x, np.ndarray)
+            if is_numpy:
                 x = torch.from_numpy(x.astype(np.float32))
             if x.dim() == 2:
                 x = x.unsqueeze(1)                               # (B,1,F)
@@ -124,13 +125,16 @@ if _TORCH_AVAILABLE:
             enc = self.encoder(seq)                               # (B, seq_len, D)
             cls_out = enc[:, 0, :]                                # (B, D)
 
-            return {
+            out = {
                 "emotion_logits": self.head_emotion(cls_out),
                 "stress":         torch.sigmoid(self.head_stress(cls_out)),
                 "engagement":     torch.sigmoid(self.head_engagement(cls_out)),
                 "attention":      torch.sigmoid(self.head_attention(cls_out)),
                 "fatigue":        torch.sigmoid(self.head_fatigue(cls_out)),
             }
+            if is_numpy:
+                return {k: v.detach().cpu().numpy() for k, v in out.items()}
+            return out
 
 
 else:

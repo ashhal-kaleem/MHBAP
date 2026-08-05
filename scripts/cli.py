@@ -11,7 +11,7 @@ app = typer.Typer(name="mhbap", help="MHBAP developer CLI")
 def dev() -> None:
     """Start FastAPI backend in dev mode."""
     import subprocess
-    subprocess.run(["uvicorn", "backend.app.main:app", "--reload", "--port", "8000"])
+    subprocess.run(["uvicorn", "app.Main:app", "--reload", "--port", "8000"])
 
 
 @app.command()

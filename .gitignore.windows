@@ -1,28 +1,59 @@
-# MHBAP — Windows .gitignore (For Windows User / Teammate)
+# ==============================================================================
+# MHBAP — Master .gitignore for Windows OS Teammate
+# Multimodal Human Behavior Analysis Platform
+# ==============================================================================
 
-# Python
+# ------------------------------------------------------------------------------
+# 1. Python & Virtual Environment (Windows & Linux cross-compatibility)
+# ------------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
+*.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments (Windows .venv / Scripts / Include / Lib)
 .venv/
 venv/
 env/
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
+ENV/
+env.bak/
+venv.bak/
+Scripts/
+Include/
+Lib/
+
+# Pytest / Coverage / Linting Caches
+.pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.pytest_cache/
-htmlcov/
 .coverage
+.coverage.*
+htmlcov/
 coverage.xml
-*.log
+*.cover
+*.py,cover
 
-# Windows OS Specific Files
+# ------------------------------------------------------------------------------
+# 2. Windows OS Specific Artifacts & System Files
+# ------------------------------------------------------------------------------
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
@@ -33,34 +64,62 @@ $RECYCLE.BIN/
 *.lnk
 *.stackdump
 *.url
+*.tmp
+*.bak
+*.swp
+~$*.doc*
+~$*.xls*
+~$*.ppt*
 
-# Visual Studio / VS Code Windows Artifacts
+# ------------------------------------------------------------------------------
+# 3. IDEs & Code Editors (VS Code, Visual Studio, PyCharm)
+# ------------------------------------------------------------------------------
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.vs/
 *.suo
 *.user
 *.userosscache
 *.sln.docstates
-.vs/
-.vscode/
+*.userprefs
+*.csproj.user
+
+# JetBrains (PyCharm / WebStorm / CLion)
 .idea/
 *.iml
 *.iws
 *.ipr
 
-# Node / Frontend
+# ------------------------------------------------------------------------------
+# 4. Node.js & Frontend Build Artifacts (Vite / React)
+# ------------------------------------------------------------------------------
 node_modules/
 frontend/node_modules/
 frontend/dist/
+frontend/build/
 .next/
 .nuxt/
-*.local
+.out/
+.vuepress/
+.cache/
+.eslintcache
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# ML / Data
+# ------------------------------------------------------------------------------
+# 5. Machine Learning Datasets & Model Weights (.pt / .pth / .onnx / .h5)
+# ------------------------------------------------------------------------------
 ml/models/weights/*.pt
 ml/models/weights/*.pth
 ml/models/weights/*.onnx
+ml/models/weights/*.tflite
+ml/models/weights/*.pb
 ml/datasets/raw/
 ml/datasets/processed/
 data/sessions/
@@ -68,38 +127,50 @@ data/exports/
 *.h5
 *.hdf5
 *.pkl
+*.pickle
 *.npy
 *.npz
 
-# Secrets
+# Exception: keep empty .gitkeep in weight folders
+!ml/models/weights/.gitkeep
+
+# ------------------------------------------------------------------------------
+# 6. Database Files (SQLite local testing DBs)
+# ------------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+!docker/
+docker/postgres_data/
+docker/redis_data/
+
+# ------------------------------------------------------------------------------
+# 7. Environment & Security Secrets (API keys, JWT secrets)
+# ------------------------------------------------------------------------------
 .env
-.env.*
-!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 *.pem
 *.key
 *.pfx
 *.p12
 
-# Docker
-docker/postgres_data/
-docker/redis_data/
-docker/docker-compose.yml.bak
+# Exception: Keep .env.example template committed for reference
+!.env.example
 
-# Training logs and error outputs
+# ------------------------------------------------------------------------------
+# 8. Logs & Temporary Script Runs
+# ------------------------------------------------------------------------------
+*.log
+logs/
 scripts/training_log*.txt
 scripts/training_err*.txt
 scripts/distcheck.txt
 scripts/run_training_v[0-9]*.py
-
-# Temporary / debug root scripts
 check_saved_weights.py
 data_leakage_audit.py
 patch_writer.py
 test_emotion_quick.py
-
-# Internal audit reports
 AUDIT_REPORT.md
-
-# Docs build
-site/
-docs/_build/

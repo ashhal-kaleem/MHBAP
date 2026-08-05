@@ -109,7 +109,7 @@ class TestTCMTTrainingLoop:
 
     def test_emotion_accuracy_above_chance(self):
         import torch
-        from ml.Evaluation.Metrics import emotion_metrics
+        from ml.evaluation.Metrics import emotion_metrics
         model, _, te = self._quick_train()
         model.eval()
         Xt = torch.tensor(te["X"], dtype=torch.float32)
