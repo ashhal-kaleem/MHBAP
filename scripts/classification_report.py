@@ -21,8 +21,8 @@ from sklearn.metrics import (
 )
 from scipy.special import softmax
 
-from ml.training.real_dataset import make_real_dataset
-from ml.fusion.tcmt import TCMT
+from ml.training.RealDataset import make_real_dataset
+from ml.fusion.Tcmt import TCMT
 from ml.evaluation.metrics import compute_all_metrics
 
 CLASS_NAMES = ["neutral", "happy/pos", "sad/fear", "angry/neg"]

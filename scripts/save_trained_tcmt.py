@@ -13,8 +13,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import f1_score
 
-from ml.fusion.tcmt import TCMT
-from ml.training.dataset import make_dataset
+from ml.fusion.Tcmt import TCMT
+from ml.training.Dataset import make_dataset
 from ml.evaluation.metrics import emotion_metrics, regression_metrics
 
 WEIGHT_PATH  = ROOT / "ml" / "models" / "weights" / "tcmt_trained.pt"

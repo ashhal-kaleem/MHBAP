@@ -59,7 +59,7 @@ def main() -> None:
     # ── Step 1: Load dataset ────────────────────────────────────────────────
     print(f"\n[1/3] Loading real datasets (seed={SEED}) ...")
     print(f"      FER2013={FER_SAMPLES}  RAF-DB={RAF_SAMPLES}  WESAD={WESAD_SAMPLES}")
-    from ml.training.real_dataset import make_real_dataset
+    from ml.training.RealDataset import make_real_dataset
 
     train_s, val_s, test_s = make_real_dataset(
         fer_samples=FER_SAMPLES,
@@ -98,7 +98,7 @@ def main() -> None:
         return
 
     import torch
-    from ml.fusion.tcmt import TCMT
+    from ml.fusion.Tcmt import TCMT
     from ml.evaluation.metrics import compute_all_metrics
 
     ckpt = torch.load(CHECKPOINT_PATH, map_location="cpu")

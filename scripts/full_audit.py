@@ -30,8 +30,8 @@ def section(title):
 # ---------------------------------------------------------------------------
 section("AUDIT 1: Model architecture vs label space mismatch")
 # ---------------------------------------------------------------------------
-from ml.fusion.tcmt import TCMT, EMOTION_CLASSES
-from ml.training.real_dataset import FER_TO_MHBAP, RAF_TO_MHBAP
+from ml.fusion.Tcmt import TCMT, EMOTION_CLASSES
+from ml.training.RealDataset import FER_TO_MHBAP, RAF_TO_MHBAP
 
 data_classes = sorted(set(FER_TO_MHBAP.values()) | set(RAF_TO_MHBAP.values()))
 n_data_classes = len(data_classes)
@@ -132,7 +132,7 @@ flag(
 section("AUDIT 5: Split disjointness - load fresh splits and verify")
 # ---------------------------------------------------------------------------
 print("  Regenerating splits with seed=42 (same as training)...", flush=True)
-from ml.training.real_dataset import make_real_dataset
+from ml.training.RealDataset import make_real_dataset
 
 try:
     train_sp, val_sp, test_sp = make_real_dataset(
@@ -314,7 +314,7 @@ if test_sp is not None:
     print("\n  Verifying emotion-class feature separation on test set:")
     X = test_sp["X"]
     y = test_sp["emotion"]
-    from ml.fusion.feature_utils import modality_slice
+    from ml.fusion.FeatureUtils import modality_slice
     vs, ve = modality_slice("voice")
     gs, ge = modality_slice("gaze")
     for cls in sorted(np.unique(y)):

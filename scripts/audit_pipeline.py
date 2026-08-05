@@ -36,7 +36,7 @@ print("\n" + "="*70)
 print("AUDIT 1: EMOTION_CLASSES mismatch")
 print("="*70)
 
-from ml.fusion.tcmt import TCMT, EMOTION_CLASSES
+from ml.fusion.Tcmt import TCMT, EMOTION_CLASSES
 print(f"  EMOTION_CLASSES in tcmt.py = {EMOTION_CLASSES}  (model head outputs this many logits)")
 print(f"  MHBAP 4-class mapping used in dataset construction")
 # The model head is Linear(D_MODEL, 8) but data only has labels 0-3

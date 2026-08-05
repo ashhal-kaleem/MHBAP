@@ -10,12 +10,16 @@ export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
 
-export function setToken(token: string): void {
+export function setToken(token: string, userId?: string): void {
   localStorage.setItem(TOKEN_KEY, token)
+  if (userId) {
+    localStorage.setItem('mhbap_user_id', userId)
+  }
 }
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem('mhbap_user_id')
 }
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
@@ -46,7 +50,7 @@ export async function register(email: string, password: string, display_name = '
   })
   if (!res.ok) throw new Error(`Register failed ${res.status}: ${await res.text()}`)
   const data: TokenResponse = await res.json()
-  setStoredToken(data.access_token, data.user_id)
+  setToken(data.access_token, data.user_id)
   return data
 }
 
@@ -58,7 +62,7 @@ export async function login(email: string, password: string): Promise<TokenRespo
   })
   if (!res.ok) throw new Error(`Login failed ${res.status}: ${await res.text()}`)
   const data: TokenResponse = await res.json()
-  setStoredToken(data.access_token, data.user_id)
+  setToken(data.access_token, data.user_id)
   return data
 }
 
@@ -66,7 +70,7 @@ export async function logout(): Promise<void> {
   try {
     await json<void>('/auth/logout', { method: 'POST' })
   } finally {
-    clearStoredToken()
+    clearToken()
   }
 }
 

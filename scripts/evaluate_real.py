@@ -15,8 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import numpy as np
 import torch
 
-from ml.fusion.tcmt import TCMT
-from ml.training.real_dataset import make_real_dataset
+from ml.fusion.Tcmt import TCMT
+from ml.training.RealDataset import make_real_dataset
 from ml.evaluation.metrics import compute_all_metrics
 
 WEIGHT_PATH  = Path(__file__).parent.parent / "ml" / "models" / "weights" / "tcmt_trained.pt"

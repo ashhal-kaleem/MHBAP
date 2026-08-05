@@ -9,8 +9,8 @@ os.environ["PYTHONIOENCODING"] = "utf-8"
 
 import numpy as np
 import torch
-from ml.fusion.tcmt import TCMT
-from ml.training.real_dataset import make_real_dataset
+from ml.fusion.Tcmt import TCMT
+from ml.training.RealDataset import make_real_dataset
 from ml.evaluation.metrics import compute_all_metrics
 
 METRICS_PATH  = r"D:\MHBAP\ml\models\weights\tcmt_eval_metrics.json"

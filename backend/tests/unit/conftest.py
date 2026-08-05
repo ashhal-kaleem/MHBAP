@@ -6,7 +6,7 @@ import os
 import pytest
 from httpx import AsyncClient, ASGITransport
 
-from app.core.config import settings
+from app.core.Config import settings
 from app.main import app
 
 # Short WS queue timeout so session-stream tests don't stall for 60 s

@@ -9,10 +9,11 @@ services:
 
   # ── PostgreSQL ────────────────────────────────────────────────────────────
   postgres:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb:2.15.3-pg16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: mhbap
-      POSTGRES_PASSWORD: mhbp2625
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: mhbap
     ports:
      - "5432:5432"
@@ -47,8 +48,8 @@ services:
       target: runtime
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://mhbap:mhbp2625@postgres:5432/mhbap
-      DATABASE_SYNC_URL: postgresql://mhbap:mhbp2625@postgres:5432/mhbap
+      DATABASE_URL: postgresql+asyncpg://mhbap:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/mhbap
+      DATABASE_SYNC_URL: postgresql://mhbap:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/mhbap
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-changeme_in_production}
       ENVIRONMENT: ${ENVIRONMENT:-production}

@@ -36,7 +36,7 @@ def check(name, ok, detail=""):
 
 # ── Load dataset ────────────────────────────────────────────────────────────
 print("\n=== Loading dataset (seed=42) ===")
-from ml.training.real_dataset import make_real_dataset
+from ml.training.RealDataset import make_real_dataset
 train_s, val_s, test_s = make_real_dataset(seed=42)
 X_tr = train_s["X"];  y_tr = train_s["emotion"]
 X_va = val_s["X"];    y_va = val_s["emotion"]
@@ -102,7 +102,7 @@ try:
     ck = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     saved_f1 = ck["test_metrics"]["emotion"]["macro_f1"]
 
-    from ml.fusion.tcmt import TCMT
+    from ml.fusion.Tcmt import TCMT
     from ml.evaluation.metrics import compute_all_metrics
     model = TCMT()
     model.load_state_dict(ck["state_dict"])
