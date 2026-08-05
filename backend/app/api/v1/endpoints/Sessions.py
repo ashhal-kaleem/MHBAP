@@ -1,10 +1,10 @@
 """
 Session endpoints.
-POST   /api/v1/sessions/            create a new recording session
-GET    /api/v1/sessions/{id}        fetch one session
-GET    /api/v1/sessions/user/{uid}  list a user's sessions
-PATCH  /api/v1/sessions/{id}        update status / end session
-POST   /api/v1/sessions/{id}/end    convenience: mark completed now
+POST   /api/v1/Sessions/            create a new recording session
+GET    /api/v1/Sessions/{id}        fetch one session
+GET    /api/v1/Sessions/User/{uid}  list a user's sessions
+PATCH  /api/v1/Sessions/{id}        update status / end session
+POST   /api/v1/Sessions/{id}/end    convenience: mark completed now
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ async def read_session(
     return SessionRead.model_validate(session)
 
 
-@router.get("/user/{user_id}", response_model=list[SessionRead])
+@router.get("/User/{user_id}", response_model=list[SessionRead])
 async def list_user_sessions(
     user_id: uuid.UUID,
     limit: int = Query(default=50, ge=1, le=500),

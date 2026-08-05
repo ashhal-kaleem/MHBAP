@@ -1,11 +1,11 @@
 """
 auth.py — Authentication endpoints.
 
-POST /api/v1/auth/register   — create account, return token
-POST /api/v1/auth/login      — verify credentials, return token
-POST /api/v1/auth/refresh    — re-issue token, blacklist the old one
-POST /api/v1/auth/logout     — blacklist the current token
-GET  /api/v1/auth/me         — return current user info
+POST /api/v1/Auth/register   — create account, return token
+POST /api/v1/Auth/login      — verify credentials, return token
+POST /api/v1/Auth/refresh    — re-issue token, blacklist the old one
+POST /api/v1/Auth/logout     — blacklist the current token
+GET  /api/v1/Auth/me         — return current user info
 
 Security hardening (Phase C):
   - Password strength: min 8 chars, at least one digit or special char

@@ -36,7 +36,7 @@ class SessionRead(BaseModel):
 
 
 class SessionStats(BaseModel):
-    """Aggregated stats for a single session — returned by GET /sessions/{id}/stats."""
+    """Aggregated stats for a single session — returned by GET /Sessions/{id}/stats."""
     session_id: uuid.UUID
     prediction_count: int
     duration_seconds: Optional[float]   # None if session still active or ended_at missing
@@ -48,5 +48,5 @@ class SessionStats(BaseModel):
 
 
 class SessionContextUpdate(BaseModel):
-    """Payload for PATCH /sessions/{id}/context — updates the human-readable label."""
+    """Payload for PATCH /Sessions/{id}/context — updates the human-readable label."""
     context: str

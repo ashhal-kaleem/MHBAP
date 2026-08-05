@@ -1,9 +1,9 @@
 """
 analytics.py — Cross-session analytics endpoints (Phase 10).
 
-GET  /api/v1/analytics/user/{user_id}            → UserAnalytics JSON
-GET  /api/v1/analytics/user/{user_id}/export/csv → full prediction dump CSV
-GET  /api/v1/sessions/{session_id}/export/json   → single-session JSON export
+GET  /api/v1/Analytics/User/{user_id}            → UserAnalytics JSON
+GET  /api/v1/Analytics/User/{user_id}/export/csv → full prediction dump CSV
+GET  /api/v1/Sessions/{session_id}/export/json   → single-session JSON export
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from app.services import analytics_service
 router = APIRouter()
 
 
-@router.get("/user/{user_id}", response_model=UserAnalytics)
+@router.get("/User/{user_id}", response_model=UserAnalytics)
 async def user_analytics(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -37,7 +37,7 @@ async def user_analytics(
     return await analytics_service.get_user_analytics(db, user_id)
 
 
-@router.get("/user/{user_id}/export/csv")
+@router.get("/User/{user_id}/export/csv")
 async def export_user_csv(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),

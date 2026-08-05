@@ -46,7 +46,7 @@ class SessionSummary(BaseModel):
 class UserAnalytics(BaseModel):
     """
     Top-level cross-session analytics payload for one user.
-    Returned by GET /api/v1/analytics/user/{user_id}
+    Returned by GET /api/v1/Analytics/User/{user_id}
     """
     user_id: uuid.UUID
     session_count: int

@@ -1,7 +1,7 @@
 """
 Health check endpoints.
-GET /api/v1/health/       — liveness probe
-GET /api/v1/health/ready  — readiness probe (checks DB + Redis in Phase 2)
+GET /api/v1/Health/       — liveness probe
+GET /api/v1/Health/ready  — readiness probe (checks DB + Redis in Phase 2)
 """
 from fastapi import APIRouter, Response
 from pydantic import BaseModel

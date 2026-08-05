@@ -10,7 +10,7 @@ Covers:
   6. End-to-end: predictor loaded from real checkpoint produces valid PredictionResult.
 
 Run from repo root:
-    pytest ml/tests/test_checkpoint_loading.py -v
+    pytest ml/tests/TestCheckpointLoading.py -v
 """
 from __future__ import annotations
 

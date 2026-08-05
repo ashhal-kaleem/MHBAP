@@ -1,16 +1,16 @@
 """
 evaluation.py — REST endpoints for benchmarks and ablation studies.
 
-GET /api/v1/evaluation/benchmark   — run per-modality + fusion benchmark
-GET /api/v1/evaluation/ablation    — run full ablation study
+GET /api/v1/Evaluation/Benchmark   — run per-modality + fusion benchmark
+GET /api/v1/Evaluation/Ablation    — run full ablation study
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, Query, Depends
 
 from app.api.Dependencies import get_current_user
-from app.evaluation.Benchmark import run_benchmark
-from app.evaluation.Ablation import run_ablation, MODALITIES
+from app.Evaluation.Benchmark import run_benchmark
+from app.Evaluation.Ablation import run_ablation, MODALITIES
 from app.schemas.Evaluation import (
     BenchmarkResponse,
     EvaluationReportSchema,
@@ -19,7 +19,7 @@ from app.schemas.Evaluation import (
     AblationResultSchema,
 )
 
-router = APIRouter(prefix="/evaluation", tags=["evaluation"])
+router = APIRouter(prefix="/Evaluation", tags=["evaluation"])
 
 
 def _to_report_schema(report) -> EvaluationReportSchema:
@@ -48,7 +48,7 @@ def _to_report_schema(report) -> EvaluationReportSchema:
     )
 
 
-@router.get("/benchmark", response_model=BenchmarkResponse)
+@router.get("/Benchmark", response_model=BenchmarkResponse)
 def benchmark(
     n_samples: int = Query(1000, ge=100, le=10000),
     seed: int = Query(42),
@@ -63,7 +63,7 @@ def benchmark(
     )
 
 
-@router.get("/ablation", response_model=AblationStudyResponse)
+@router.get("/Ablation", response_model=AblationStudyResponse)
 def ablation(
     n_samples: int = Query(500, ge=100, le=5000),
     seed: int = Query(42),

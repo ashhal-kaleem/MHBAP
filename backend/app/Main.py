@@ -17,7 +17,7 @@ from loguru import logger
 
 from app.core.Config import settings
 from app.core.Logging import setup_logging
-from app.core.Security_headers import SecurityHeadersMiddleware
+from app.core.SecurityHeaders import SecurityHeadersMiddleware
 from app.core.ContentSize import ContentSizeLimitMiddleware
 
 

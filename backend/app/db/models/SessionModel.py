@@ -1,7 +1,7 @@
 """
 Session model — one row per recording session (e.g. one lecture,
 one coding task). Named session_model.py to avoid colliding with
-db/session.py (the SQLAlchemy engine module).
+db/Session.py (the SQLAlchemy engine module).
 """
 from __future__ import annotations
 

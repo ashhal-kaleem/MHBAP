@@ -3,11 +3,11 @@ stream.py — WebSocket streaming endpoint (Phase 9: Redis-hardened).
 
 Routes
 ------
-GET /api/v1/stream/session/{session_id}
+GET /api/v1/Stream/Session/{session_id}
     Real-time prediction stream for a running session.
     Uses Redis pub/sub (falls back to in-process bus if Redis is down).
 
-GET /api/v1/stream/demo
+GET /api/v1/Stream/demo
     Synthetic prediction stream — no hardware, no DB required.
     Sends one WsMessage/s with smoothly animated fake values.
 
@@ -186,7 +186,7 @@ async def _send_frame(ws: WebSocket, frame_type: str, payload) -> None:
 
 # ── WebSocket: live session stream ────────────────────────────────────────
 
-@router.websocket("/session/{session_id}")
+@router.websocket("/Session/{session_id}")
 async def ws_session_stream(
     websocket: WebSocket,
     session_id: str,
@@ -277,7 +277,7 @@ async def ws_demo_stream(
 ) -> None:
     # NOTE: No auth required — this endpoint emits purely synthetic data
     # (no DB, no real sessions, no PII).  The live session stream at
-    # /stream/session/{id} retains its get_ws_current_user guard.
+    # /Stream/Session/{id} retains its get_ws_current_user guard.
     """
     Synthetic prediction stream for UI development / demos.
     No DB, no hardware, no Redis required.

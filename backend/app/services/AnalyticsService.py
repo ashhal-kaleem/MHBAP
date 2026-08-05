@@ -174,7 +174,7 @@ async def export_user_csv_stream(
         .order_by(Prediction.session_id, Prediction.time)
         .execution_options(yield_per=500)
     )
-    result = await db.stream(stmt)
+    result = await db.Stream(stmt)
     async for partition in result.partitions(500):
         for row in partition:
             p = row[0]

@@ -1,7 +1,7 @@
 """
 User endpoints.
-POST /api/v1/users/       create a participant account (unauthenticated — registration path)
-GET  /api/v1/users/{id}   fetch own profile (requires auth)
+POST /api/v1/Users/       create a participant account (unauthenticated — registration path)
+GET  /api/v1/Users/{id}   fetch own profile (requires auth)
 """
 from __future__ import annotations
 

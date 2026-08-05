@@ -128,7 +128,7 @@ class TestSHAP(unittest.TestCase):
         p = BehaviourPredictor()
         dicts = {mod: {k: 0.1 for k in keys} for mod, keys in MODALITY_KEYS.items()}
         result = p.predict(dicts)
-        return p, result.feature_vector
+        return p, result.FeatureVector
 
     def test_shap_keys(self):
         from ml.xai.ShapExplainer import SHAPExplainer
@@ -165,4 +165,4 @@ class TestNLExplainer(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.Main()

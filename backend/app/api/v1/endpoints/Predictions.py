@@ -1,8 +1,8 @@
 """
 Prediction endpoints.
-POST /api/v1/predictions/                 write one prediction row (inference service)
-GET  /api/v1/predictions/session/{id}      list predictions for a session (dashboard poll)
-GET  /api/v1/predictions/session/{id}/latest  most recent prediction only
+POST /api/v1/Predictions/                 write one prediction row (inference service)
+GET  /api/v1/Predictions/Session/{id}      list predictions for a session (dashboard poll)
+GET  /api/v1/Predictions/Session/{id}/latest  most recent prediction only
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ async def create_prediction(
     return PredictionRead.model_validate(prediction)
 
 
-@router.get("/session/{session_id}", response_model=list[PredictionRead])
+@router.get("/Session/{session_id}", response_model=list[PredictionRead])
 async def list_session_predictions(
     session_id: uuid.UUID,
     since: Optional[datetime] = None,
@@ -55,7 +55,7 @@ async def list_session_predictions(
     return [PredictionRead.model_validate(p) for p in predictions]
 
 
-@router.get("/session/{session_id}/latest", response_model=PredictionRead)
+@router.get("/Session/{session_id}/latest", response_model=PredictionRead)
 async def latest_session_prediction(
     session_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -72,7 +72,7 @@ async def latest_session_prediction(
     return PredictionRead.model_validate(prediction)
 
 
-@router.get("/session/{session_id}/xai", response_model=XAISummary)
+@router.get("/Session/{session_id}/xai", response_model=XAISummary)
 async def session_xai_summary(
     session_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),

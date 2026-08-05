@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class DataWriter:
     """
     Wraps async DB insertion with a bounded in-memory queue so the
-    capture/pipeline threads don't block on I/O.
+    capture/Pipeline threads don't block on I/O.
     """
 
     def __init__(self, queue_size: int = 256) -> None:

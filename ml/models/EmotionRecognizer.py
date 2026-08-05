@@ -44,7 +44,7 @@ WEIGHTS_DIR  = Path(__file__).parent / "weights"
 CHECKPOINT   = WEIGHTS_DIR / "enet_b0_8_best_afew.pt"
 DOWNLOAD_URL = (
     "https://github.com/HSE-asavchenko/face-emotion-recognition"
-    "/raw/main/models/affectnet_emotions/enet_b0_8_best_afew.pt"
+    "/raw/Main/models/affectnet_emotions/enet_b0_8_best_afew.pt"
 )
 
 INPUT_SIZE = 224  # EfficientNet-B0 canonical input

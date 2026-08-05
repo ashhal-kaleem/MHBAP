@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserCreate(BaseModel):
-    """Legacy schema used by unauthenticated POST /users/ (Phase 2).
+    """Legacy schema used by unauthenticated POST /Users/ (Phase 2).
     hashed_password / role / is_active intentionally excluded —
     those are server-assigned only.
     """

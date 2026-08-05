@@ -3,16 +3,16 @@ runner.py — API endpoints to start/stop the real-time SessionRunner.
 
 Routes
 ------
-POST /api/v1/runner/session/{session_id}/start
+POST /api/v1/Runner/Session/{session_id}/start
     Launch a SessionRunner background task for the given session.
     The runner captures camera/mic/HCI, runs all pipelines, performs TCMT
     inference, and publishes predictions to stream_bus so the WebSocket
-    handler at /api/v1/stream/session/{session_id} receives them.
+    handler at /api/v1/Stream/Session/{session_id} receives them.
 
-POST /api/v1/runner/session/{session_id}/stop
+POST /api/v1/Runner/Session/{session_id}/stop
     Signal the running task to stop and wait for cleanup.
 
-GET  /api/v1/runner/session/{session_id}/status
+GET  /api/v1/Runner/Session/{session_id}/status
     Returns {"session_id": ..., "running": bool}.
 
 Design notes
@@ -93,7 +93,7 @@ def _task_done_callback(session_id: str, task: asyncio.Task) -> None:
 
 # ── endpoints ──────────────────────────────────────────────────────────────
 
-@router.post("/session/{session_id}/start", response_model=RunnerStatus, status_code=202)
+@router.post("/Session/{session_id}/start", response_model=RunnerStatus, status_code=202)
 async def start_runner(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -130,7 +130,7 @@ async def start_runner(
     return RunnerStatus(session_id=sid, running=True)
 
 
-@router.post("/session/{session_id}/stop", response_model=RunnerStatus)
+@router.post("/Session/{session_id}/stop", response_model=RunnerStatus)
 async def stop_runner(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -171,7 +171,7 @@ async def stop_runner(
     return RunnerStatus(session_id=sid, running=False)
 
 
-@router.get("/session/{session_id}/status", response_model=RunnerStatus)
+@router.get("/Session/{session_id}/status", response_model=RunnerStatus)
 async def runner_status(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),

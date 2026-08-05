@@ -26,7 +26,7 @@ async def record_failed_login(identifier: str) -> None:
     key = f"lockout:{identifier}"
     redis = get_redis()
     member = f"{now}:{uuid.uuid4()}"
-    pipe = redis.pipeline()
+    pipe = redis.Pipeline()
     pipe.zadd(key, {member: now})
     pipe.expire(key, LOCKOUT_WINDOW_SECONDS)
     await pipe.execute()
@@ -46,7 +46,7 @@ async def check_account_lockout(identifier: str) -> None:
     key = f"lockout:{identifier}"
     redis = get_redis()
     
-    pipe = redis.pipeline()
+    pipe = redis.Pipeline()
     pipe.zremrangebyscore(key, 0, cutoff)
     pipe.zcard(key)
     pipe.zrange(key, 0, 0, withscores=True)
@@ -78,7 +78,7 @@ async def _sliding_window_check(key: str, limit: int, window_seconds: int) -> Tu
     cutoff = now - window_seconds
     redis = get_redis()
     
-    pipe = redis.pipeline()
+    pipe = redis.Pipeline()
     pipe.zremrangebyscore(key, 0, cutoff)
     pipe.zcard(key)
     pipe.zrange(key, 0, 0, withscores=True)
@@ -98,7 +98,7 @@ async def _sliding_window_check(key: str, limit: int, window_seconds: int) -> Tu
         )
         
     member = f"{now}:{uuid.uuid4()}"
-    pipe = redis.pipeline()
+    pipe = redis.Pipeline()
     pipe.zadd(key, {member: now})
     pipe.expire(key, window_seconds)
     await pipe.execute()
