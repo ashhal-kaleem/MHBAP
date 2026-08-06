@@ -32,6 +32,18 @@ coverage.xml
 .Trashes
 .fseventsd
 
+# Windows OS Specific Files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+*.url
+
 # Node / Frontend
 node_modules/
 frontend/node_modules/
@@ -63,12 +75,20 @@ data/exports/
 !.env.example
 *.pem
 *.key
+*.pfx
+*.p12
 
 # IDE
 .vscode/
 .idea/
 *.suo
 *.user
+*.userosscache
+*.sln.docstates
+.vs/
+*.iml
+*.iws
+*.ipr
 
 # Docker
 docker/postgres_data/
