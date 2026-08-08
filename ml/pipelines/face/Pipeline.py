@@ -8,9 +8,10 @@ MediaPipe import fails (CI / no-camera environments).
 from __future__ import annotations
 
 import math
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import numpy as np
+from loguru import logger
 
 from ml.pipelines.Base import BasePipeline
 
@@ -50,38 +51,142 @@ class FacePipeline(BasePipeline):
         self._det_conf = min_detection_confidence
         self._trk_conf = min_tracking_confidence
         self._mesh = None  # lazy-init on first call
+        self._mp_available: Optional[bool] = None  # None = not yet checked
         self._mp_drawing = None
+        self._frame_count = 0
+        self._first_frame_logged = False
+        # Normalized face bounding box from the most recent detection.
+        # Set to (x_min, y_min, x_max, y_max) in [0, 1] when a face is found,
+        # or None when no face is detected.  Read by SessionRunner to crop the
+        # face region before passing it to EmotionRecognizer.
+        self.last_face_bbox: Optional[Tuple[float, float, float, float]] = None
 
     # ------------------------------------------------------------------
     def _ensure_mesh(self) -> bool:
         if self._mesh is not None:
             return True
+        # Already tried and failed — don't retry every frame, but DO log loudly once
+        if self._mp_available is False:
+            return False
         try:
+            import os
+            import pathlib
+            import urllib.request
             import mediapipe as mp  # type: ignore
-            self._mesh = mp.solutions.face_mesh.FaceMesh(
-                static_image_mode=False,
-                max_num_faces=1,
-                refine_landmarks=True,
-                min_detection_confidence=self._det_conf,
+            from mediapipe.tasks import python
+            from mediapipe.tasks.python import vision
+
+            weights_dir = pathlib.Path(__file__).parent.parent.parent / "models" / "weights"
+            task_path = weights_dir / "face_landmarker.task"
+            
+            if not task_path.exists():
+                logger.info("FacePipeline: Downloading MediaPipe face_landmarker.task...")
+                weights_dir.mkdir(parents=True, exist_ok=True)
+                urllib.request.urlretrieve(
+                    "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                    str(task_path)
+                )
+
+            base_options = python.BaseOptions(model_asset_path=str(task_path))
+            options = vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                output_face_blendshapes=False,
+                output_facial_transformation_matrixes=False,
+                num_faces=1,
+                min_face_detection_confidence=self._det_conf,
                 min_tracking_confidence=self._trk_conf,
             )
+            self._mesh = vision.FaceLandmarker.create_from_options(options)
+            
+            self._mp_available = True
+            logger.info(
+                "FacePipeline: MediaPipe Tasks FaceLandmarker initialised OK "
+                "(det_conf={}, trk_conf={})",
+                self._det_conf, self._trk_conf,
+            )
             return True
-        except ImportError:
+        except ImportError as exc:
+            self._mp_available = False
+            logger.error(
+                "FacePipeline: mediapipe NOT INSTALLED — face AU features will be "
+                "ALL ZEROS every frame. Install with: uv add mediapipe  (error: {})",
+                exc,
+            )
+            return False
+        except Exception as exc:
+            self._mp_available = False
+            logger.error("FacePipeline: FaceMesh init failed unexpectedly: {}", exc)
             return False
 
     def process(self, frame: Optional[np.ndarray]) -> Dict[str, float]:
         zeros = {k: 0.0 for k in _FEATURE_KEYS}
-        if frame is None or not self._ensure_mesh():
+        if frame is None:
             return zeros
+
+        if not self._ensure_mesh():
+            return zeros
+
+        # Log frame properties on the first call so we can verify shape/dtype/channels
+        if not self._first_frame_logged:
+            self._first_frame_logged = True
+            logger.info(
+                "FacePipeline: FIRST FRAME received — shape={} dtype={} "
+                "channels={} min={} max={}",
+                frame.shape,
+                frame.dtype,
+                frame.shape[2] if frame.ndim == 3 else "N/A",
+                int(frame.min()),
+                int(frame.max()),
+            )
 
         import cv2  # type: ignore
+        import mediapipe as mp
+        # Frame is BGR (from OpenCV VideoCapture); MediaPipe needs RGB
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self._mesh.process(rgb)
+        
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        results = self._mesh.detect(mp_image)
 
-        if not results.multi_face_landmarks:
+        self._frame_count += 1
+        detected = bool(results.face_landmarks)
+
+        # Log every frame for the first 30 frames, then every 30 frames
+        if self._frame_count <= 30 or self._frame_count % 30 == 0:
+            logger.info(
+                "FacePipeline: frame={} shape={} face_detected={}",
+                self._frame_count,
+                frame.shape,
+                detected,
+            )
+
+        if not detected:
+            self.last_face_bbox = None
             return zeros
 
-        lm = results.multi_face_landmarks[0].landmark
+        lm = results.face_landmarks[0]
+
+        # ── Compute normalized face bounding box from all 468 landmarks ──────
+        # Using all points is more stable than a fixed subset.  The FaceLandmarker
+        # returns x/y in [0, 1] normalized image coordinates.
+        xs = [p.x for p in lm]
+        ys = [p.y for p in lm]
+        nx0, ny0, nx1, ny1 = min(xs), min(ys), max(xs), max(ys)
+        self.last_face_bbox = (nx0, ny0, nx1, ny1)
+
+        # ── Input-quality warning: face near or beyond frame edge ─────────────
+        # MediaPipe can return landmark coords slightly outside [0, 1] when the
+        # face is at the webcam boundary.  The downstream _crop_face() will clamp
+        # safely, but the crop will be geometrically truncated (partial face).
+        if nx0 < 0.0 or ny0 < 0.0 or nx1 > 1.0 or ny1 > 1.0:
+            logger.warning(
+                "FacePipeline: face bbox extends beyond frame boundary on frame={} "
+                "bbox_norm=({:.3f},{:.3f},{:.3f},{:.3f}) — face may be partially "
+                "outside the webcam view; emotion predictions may be degraded. "
+                "Centre your face in the webcam for best accuracy.",
+                self._frame_count, nx0, ny0, nx1, ny1,
+            )
+        # ──────────────────────────────────────────────────────────────────────
+
         # Landmark indices per MediaPipe FaceMesh 468-point map
         # Brow raise: distance between brow tip and eye corner
         left_brow   = lm[105]; left_eye_top   = lm[159]
@@ -96,7 +201,7 @@ class FacePipeline(BasePipeline):
 
         face_h = _dist(lm[10], lm[152]) or 1e-6  # normalisation ref
 
-        return {
+        feats = {
             "au_brow_raise_l":      min(1.0, _dist(left_brow,  left_eye_top)  / face_h * 5),
             "au_brow_raise_r":      min(1.0, _dist(right_brow, right_eye_top) / face_h * 5),
             "au_brow_furrow":       1.0 - min(1.0, _dist(brow_mid_l, brow_mid_r) / face_h * 4),
@@ -110,6 +215,22 @@ class FacePipeline(BasePipeline):
             "au_cheek_raise":       min(1.0, abs(lm[117].z + lm[346].z) * 2),
             "au_chin_raise":        min(1.0, abs(lm[199].z) * 4),
         }
+
+        # Log the AU values on the first 5 detections and every 30 frames after
+        if self._frame_count <= 5 or (self._frame_count % 30 == 0 and detected):
+            nonzero = sum(1 for v in feats.values() if v > 0.0)
+            x0, y0, x1, y1 = self.last_face_bbox
+            logger.info(
+                "FacePipeline: face DETECTED on frame={} nonzero_AUs={}/12 "
+                "eye_open_l={:.3f} eye_open_r={:.3f} brow_furrow={:.3f} "
+                "bbox_norm=({:.3f},{:.3f},{:.3f},{:.3f})",
+                self._frame_count, nonzero,
+                feats["au_eye_open_l"],
+                feats["au_eye_open_r"],
+                feats["au_brow_furrow"],
+                x0, y0, x1, y1,
+            )
+        return feats
 
     def warm_up(self) -> None:
         self._ensure_mesh()

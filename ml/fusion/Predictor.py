@@ -20,7 +20,6 @@ rest of the system keeps functioning.
 from __future__ import annotations
 
 import collections
-import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,7 +31,8 @@ from ml.fusion.FeatureUtils import dicts_to_vector
 from ml.fusion.FeatureVector import FEATURE_DIM
 from ml.fusion.Tcmt import TCMT, EMOTION_CLASSES, _TORCH_AVAILABLE
 
-logger = logging.getLogger(__name__)
+from loguru import logger
+
 
 # AffectNet-8 labels (used by EmotionRecognizer pretrained path)
 EMOTION_LABELS = [
@@ -83,6 +83,7 @@ class BehaviourPredictor:
         self._buffer: Deque[np.ndarray] = collections.deque(maxlen=T_STEPS)
         self._torch  = _TORCH_AVAILABLE
         self._device = device
+        self._pred_count = 0
 
         if self._torch:
             import torch
@@ -140,6 +141,16 @@ class BehaviourPredictor:
         """
         vec = dicts_to_vector(feature_dicts)
         self._buffer.append(vec)
+        
+        self._pred_count += 1
+        if self._pred_count % 15 == 0:  # every ~1 s at 15 fps
+            logger.info(
+                "BehaviourPredictor: pred_count={} bgr_frame={} buffer_len={} vec_nonzero={}",
+                self._pred_count,
+                bgr_frame is not None,
+                len(self._buffer),
+                int(np.count_nonzero(vec)),
+            )
 
         pad_n = T_STEPS - len(self._buffer)
         arr   = np.stack(

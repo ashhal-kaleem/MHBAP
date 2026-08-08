@@ -10,7 +10,6 @@ Fallback chain:
   3. Feature-magnitude heuristic (if torch unavailable)
 """
 from __future__ import annotations
-import logging
 from typing import Dict, List, Optional
 import numpy as np
 
@@ -18,7 +17,8 @@ from ml.fusion.FeatureVector import MODALITY_KEYS
 from ml.fusion.FeatureUtils import modality_slice
 from ml.fusion.Tcmt import TCMT, _TORCH_AVAILABLE
 
-logger = logging.getLogger(__name__)
+from loguru import logger
+
 
 TARGET_HEADS = ["stress", "engagement", "attention", "fatigue"]
 

@@ -68,18 +68,42 @@ WESAD_STRESS_MAP = {0: 0.3, 1: 0.1, 2: 0.9, 3: 0.15}
 _GLOBAL_FACE_MESH = None
 
 def _get_face_mesh():
+    """Return a MediaPipe Tasks FaceLandmarker (singleton, lazy-init).
+
+    Uses the same face_landmarker.task model file as FacePipeline.
+    Downloads it automatically if not yet present.
+    Returns the string sentinel 'MISSING' if mediapipe is unavailable.
+    """
     global _GLOBAL_FACE_MESH
-    if _GLOBAL_FACE_MESH is None:
-        try:
-            import mediapipe as mp # type: ignore
-            _GLOBAL_FACE_MESH = mp.solutions.face_mesh.FaceMesh(
-                static_image_mode=True,
-                max_num_faces=1,
-                refine_landmarks=True,
-                min_detection_confidence=0.5,
+    if _GLOBAL_FACE_MESH is not None:
+        return _GLOBAL_FACE_MESH
+    try:
+        import pathlib, urllib.request
+        import mediapipe as mp  # type: ignore
+        from mediapipe.tasks import python as mp_python
+        from mediapipe.tasks.python import vision as mp_vision
+
+        weights_dir = pathlib.Path(__file__).parent.parent / "models" / "weights"
+        task_path = weights_dir / "face_landmarker.task"
+        if not task_path.exists():
+            weights_dir.mkdir(parents=True, exist_ok=True)
+            urllib.request.urlretrieve(
+                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                str(task_path),
             )
-        except ImportError:
-            _GLOBAL_FACE_MESH = "MISSING"
+
+        base_options = mp_python.BaseOptions(model_asset_path=str(task_path))
+        options = mp_vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False,
+            num_faces=1,
+            min_face_detection_confidence=0.5,
+            min_tracking_confidence=0.5,
+        )
+        _GLOBAL_FACE_MESH = mp_vision.FaceLandmarker.create_from_options(options)
+    except ImportError:
+        _GLOBAL_FACE_MESH = "MISSING"
     return _GLOBAL_FACE_MESH
 
 
@@ -88,20 +112,23 @@ def _dist(a, b) -> float:
 
 
 def _img_to_face_features(img_array: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """MediaPipe FaceMesh -> 12-dim AU proxy features.
+    """MediaPipe Tasks FaceLandmarker -> 12-dim AU proxy features.
     Matches FacePipeline inference logic. Falls back to zeros if no face.
     Uses only image content; no emotion label involved.
     """
+    import mediapipe as mp  # type: ignore
     mesh = _get_face_mesh()
     zeros = np.zeros(12, dtype=np.float32)
     if mesh == "MISSING" or mesh is None:
         return zeros
 
-    results = mesh.process(img_array)
-    if not results.multi_face_landmarks:
+    # Tasks API: wrap numpy RGB array in mp.Image and call detect()
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_array)
+    results = mesh.detect(mp_image)
+    if not results.face_landmarks:
         return zeros
 
-    lm = results.multi_face_landmarks[0].landmark
+    lm = results.face_landmarks[0]  # list of NormalizedLandmark
     left_brow   = lm[105]; left_eye_top   = lm[159]
     right_brow  = lm[334]; right_eye_top  = lm[386]
     brow_mid_l  = lm[107]; brow_mid_r     = lm[336]

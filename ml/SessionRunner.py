@@ -16,11 +16,11 @@ async with SessionRunner(session_id=...) as runner:
 from __future__ import annotations
 
 import asyncio
-import logging
 import uuid as _uuid_mod
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Tuple
 from uuid import UUID
+import numpy as np
 
 from ml.capture.Camera import CameraCapture
 from ml.capture.Microphone import MicrophoneCapture
@@ -36,9 +36,52 @@ from ml.xai.ShapExplainer import SHAPExplainer
 from ml.xai.NlExplainer import generate_explanation
 from app.core.RedisStreamBus import publish as _bus_publish
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 _TICK_HZ = 15  # pipeline invocation rate
+
+
+def _crop_face(
+    frame: np.ndarray,
+    bbox_norm: Tuple[float, float, float, float],
+    padding: float = 0.25,
+) -> Optional[np.ndarray]:
+    """
+    Expand the normalized bbox by `padding` fraction, clamp to frame bounds,
+    and return the BGR crop. Returns None if the crop is degenerate (<8px).
+    """
+    if frame is None or bbox_norm is None:
+        return None
+
+    h, w = frame.shape[:2]
+    nx0, ny0, nx1, ny1 = bbox_norm
+
+    x0 = int(nx0 * w)
+    y0 = int(ny0 * h)
+    x1 = int(nx1 * w)
+    y1 = int(ny1 * h)
+
+    bw = max(1, x1 - x0)
+    bh = max(1, y1 - y0)
+
+    px = int(bw * padding)
+    py = int(bh * padding)
+
+    cx0 = max(0, x0 - px)
+    cy0 = max(0, y0 - py)
+    cx1 = min(w, x1 + px)
+    cy1 = min(h, y1 + py)
+
+    if (cx1 - cx0) < 64 or (cy1 - cy0) < 64:
+        # Crop too small – likely a partial face or detection error.
+        logger.warning(
+            "SessionRunner: crop too small ({}x{}) after clamping – skipping emotion prediction.",
+            cx1 - cx0,
+            cy1 - cy0,
+        )
+        return None
+
+    return frame[cy0:cy1, cx0:cx1]
 
 
 class SessionRunner:
@@ -69,12 +112,14 @@ class SessionRunner:
 
     # ------------------------------------------------------------------
     async def __aenter__(self) -> "SessionRunner":
+        logger.info("SessionRunner.__aenter__: starting capture threads for session={}", self.session_id)
         await self._writer.start()
         for name, cap in [("camera", self._cam), ("mic", self._mic), ("hci", self._hci)]:
             try:
                 cap.start()
+                logger.info("SessionRunner: capture '{}' started", name)
             except Exception as exc:
-                logger.warning(f"SessionRunner capture '{name}' startup notice: {exc}")
+                logger.warning("SessionRunner capture '{}' startup notice: {}", name, exc)
         return self
 
     async def __aexit__(self, *_) -> None:
@@ -112,7 +157,13 @@ class SessionRunner:
             elapsed = asyncio.get_event_loop().time() - t0
             await asyncio.sleep(max(0.0, interval - elapsed))
 
+    _tick_count: int = 0  # class-level counter shared across instances is wrong; use instance
+
     async def _tick(self) -> None:
+        if not hasattr(self, "_tick_n"):
+            self._tick_n = 0
+        self._tick_n += 1
+
         frame = self._cam.get_frame()
 
         # Vision pipelines (all consume the same frame)
@@ -134,7 +185,14 @@ class SessionRunner:
             "face": face_feats, "gaze": gaze_feats, "pose": pose_feats,
             "voice": voice_feats, "hci": hci_feats,
         }
-        prediction = self._predictor.predict(feature_dicts, bgr_frame=frame)
+
+        # ── face crop for EmotionRecognizer ──────────────────────────────
+        face_crop = None
+        if frame is not None and getattr(self._face, "last_face_bbox", None) is not None:
+            face_crop = _crop_face(frame, self._face.last_face_bbox)
+        # ────────────────────────────────────────────────────────────────
+
+        prediction = self._predictor.predict(feature_dicts, bgr_frame=face_crop)
         if prediction.feature_vector is not None:
             shap = self._explainer.explain(prediction.feature_vector)
             self.latest_shap = shap.get("stress", {})
@@ -142,6 +200,35 @@ class SessionRunner:
                 prediction, self.latest_shap, head="stress"
             )
         self.latest_prediction = prediction
+
+        # ── End-to-end pipeline diagnostic (every ~1 s) ──────────────────
+        if self._tick_n <= 30:
+            # Detailed per‑frame diagnostic (first 30 frames)
+            logger.info(
+                "DIAGNOSTIC tick={} | crop={} | probs={} | top={:.3f}",
+                self._tick_n,
+                face_crop.shape if face_crop is not None else "NONE",
+                prediction.emotion_scores,
+                top_score,
+            )
+        if self._tick_n % 15 == 0:
+            face_nonzero = sum(1 for v in face_feats.values() if v != 0.0) if face_feats else 0
+            top_emo = max(prediction.emotion_scores, key=prediction.emotion_scores.get) if prediction.emotion_scores else "?"
+            top_score = prediction.emotion_scores.get(top_emo, 0.0)
+            shap_str = ", ".join(f"{k}={v:.3f}" for k, v in self.latest_shap.items()) if self.latest_shap else "(empty)"
+            logger.info(
+                "PIPELINE tick={} | frame={} | crop={} | face_AU_nonzero={}/{} | "
+                "emotion={}({:.3f}) src={} | stress={:.3f} eng={:.3f} att={:.3f} fat={:.3f} | "
+                "SHAP_stress=[{}]",
+                self._tick_n,
+                "real" if frame is not None else "NONE",
+                face_crop.shape if face_crop is not None else "NONE",
+                face_nonzero,
+                len(face_feats) if face_feats else 0,
+                prediction.emotion, top_score, prediction.emotion_source,
+                prediction.stress, prediction.engagement, prediction.attention, prediction.fatigue,
+                shap_str,
+            )
 
         # Push to any connected WebSocket clients
         now_dt = datetime.now(timezone.utc)

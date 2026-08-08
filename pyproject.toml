@@ -39,6 +39,12 @@ dependencies = [
     "typer>=0.12.0",
     # Numeric — required by app.evaluation (imported at module load time)
     "numpy>=1.26.0",
+    # Deep learning — required by TCMT inference (falls back to stub returning 0.5 without torch)
+    "torch>=2.3.0",
+    "torchvision>=0.18.0",
+    # timm — required by EmotionRecognizer (EfficientNet-B0/AffectNet-8 backbone)
+    "timm>=1.0.3",
+    "mediapipe>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -47,10 +53,7 @@ ml = [
     "opencv-python>=4.10.0",
     "mediapipe>=0.10.14",
     "Pillow>=10.3.0",
-    # Deep learning
-    "torch>=2.3.0",
-    "torchvision>=0.18.0",
-    "timm>=1.0.3",
+    # Deep learning (torch/torchvision/timm moved to core deps above)
     "transformers>=4.42.0",
     # Audio
     "sounddevice>=0.4.7",

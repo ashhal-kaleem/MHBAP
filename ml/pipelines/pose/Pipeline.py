@@ -34,17 +34,51 @@ class PosePipeline(BasePipeline):
     def _ensure_pose(self) -> bool:
         if self._pose is not None:
             return True
+        if getattr(self, "_mp_available", None) is False:
+            return False
         try:
+            import os
+            import pathlib
+            import urllib.request
             import mediapipe as mp  # type: ignore
-            self._pose = mp.solutions.pose.Pose(
-                static_image_mode=False,
-                model_complexity=1,
-                smooth_landmarks=True,
-                min_detection_confidence=0.5,
+            from mediapipe.tasks import python
+            from mediapipe.tasks.python import vision
+            from loguru import logger
+
+            weights_dir = pathlib.Path(__file__).parent.parent.parent / "models" / "weights"
+            task_path = weights_dir / "pose_landmarker_full.task"
+            
+            if not task_path.exists():
+                logger.info("PosePipeline: Downloading MediaPipe pose_landmarker_full.task...")
+                weights_dir.mkdir(parents=True, exist_ok=True)
+                urllib.request.urlretrieve(
+                    "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task",
+                    str(task_path)
+                )
+
+            base_options = python.BaseOptions(model_asset_path=str(task_path))
+            options = vision.PoseLandmarkerOptions(
+                base_options=base_options,
+                output_segmentation_masks=False,
+                num_poses=1,
+                min_pose_detection_confidence=0.5,
+                min_pose_presence_confidence=0.5,
                 min_tracking_confidence=0.5,
             )
+            self._pose = vision.PoseLandmarker.create_from_options(options)
+            
+            self._mp_available = True
+            logger.info("PosePipeline: MediaPipe Tasks PoseLandmarker initialised OK")
             return True
-        except ImportError:
+        except ImportError as exc:
+            self._mp_available = False
+            from loguru import logger
+            logger.error("PosePipeline: mediapipe NOT INSTALLED — pose features will be ALL ZEROS every frame.")
+            return False
+        except Exception as exc:
+            self._mp_available = False
+            from loguru import logger
+            logger.error("PosePipeline: PoseLandmarker init failed unexpectedly: {}", exc)
             return False
 
     def process(self, frame: Optional[np.ndarray]) -> Dict[str, float]:
@@ -59,12 +93,14 @@ class PosePipeline(BasePipeline):
             return zeros
 
         import cv2  # type: ignore
+        import mediapipe as mp
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self._pose.process(rgb)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        results = self._pose.detect(mp_image)
         if not results.pose_landmarks:
             return zeros
 
-        lm = results.pose_landmarks.landmark
+        lm = results.pose_landmarks[0]
         # MediaPipe Pose landmark indices
         L_SHOULDER, R_SHOULDER = 11, 12
         L_HIP, R_HIP           = 23, 24

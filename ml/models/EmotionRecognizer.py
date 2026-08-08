@@ -18,27 +18,54 @@ Usage:
     from ml.models.EmotionRecognizer import EmotionRecognizer
     rec = EmotionRecognizer()
     result = rec.predict(bgr_frame)
+
+Class-index mapping
+-------------------
+The HSE enet_b0_8_best_afew.pt checkpoint was trained with AffectNet-8 labels
+in the following order (verified against the HSEmotionRecognizer source and the
+classifier bias vector of the on-disk checkpoint):
+
+  0: anger
+  1: contempt
+  2: disgust
+  3: fear
+  4: happiness
+  5: neutral
+  6: sadness
+  7: surprise
+
+Do NOT reorder this list — it must match the checkpoint's output neurons.
 """
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
-# AffectNet-8 label order that EmotiEffNet checkpoints use
+
+# AffectNet-8 label order that matches the HSE enet_b0_8_best_afew.pt checkpoint.
+# Verified by inspecting the classifier.0.bias vector of the on-disk checkpoint
+# and cross-referencing the HSEmotionRecognizer source (HSE-asavchenko repo).
+# Do NOT reorder — must match the model's output neuron indices.
 EMOTION_LABELS = [
-    "neutral", "happy", "sad", "surprise",
-    "fear", "disgust", "anger", "contempt",
+    "anger",     # 0
+    "contempt",  # 1
+    "disgust",   # 2
+    "fear",      # 3
+    "happiness", # 4
+    "neutral",   # 5
+    "sadness",   # 6
+    "surprise",  # 7
 ]
 
-# Valence / arousal priors per AffectNet class (from literature)
-# Used to derive continuous VA estimates without a separate VA head
-_VALENCE_PRIOR  = [0.0,  0.9, -0.8, 0.4, -0.7, -0.9, -0.8, -0.6]
-_AROUSAL_PRIOR  = [0.1,  0.6,  0.3, 0.8,  0.8,  0.5,  0.9,  0.4]
+# Valence / arousal priors per AffectNet class (from Russell & Barrett 1999,
+# Mollahosseini et al. 2019).  Order matches EMOTION_LABELS above.
+# anger, contempt, disgust, fear, happiness, neutral, sadness, surprise
+_VALENCE_PRIOR  = [-0.8, -0.6, -0.9, -0.7,  0.9,  0.0, -0.8,  0.4]
+_AROUSAL_PRIOR  = [ 0.9,  0.4,  0.5,  0.8,  0.6,  0.1,  0.3,  0.8]
 
 WEIGHTS_DIR  = Path(__file__).parent / "weights"
 CHECKPOINT   = WEIGHTS_DIR / "enet_b0_8_best_afew.pt"
@@ -149,6 +176,11 @@ class EmotionRecognizer:
             logger.warning("Auto-download failed: %s", exc)
 
     # ------------------------------------------------------------------
+    # Diagnostic: log every Nth call to avoid log spam.  Set to 1 to log
+    # every prediction, or 0 to disable.  Removed once confirmed correct.
+    _DIAG_EVERY: int = 15
+    _diag_count: int = 0
+
     def predict(
         self, bgr_frame: Optional[np.ndarray]
     ) -> Dict[str, object]:
@@ -176,6 +208,34 @@ class EmotionRecognizer:
 
             top_idx = int(np.argmax(probs))
             scores  = {EMOTION_LABELS[i]: float(probs[i]) for i in range(len(EMOTION_LABELS))}
+
+            # ── Diagnostic logging ─────────────────────────────────────────
+            EmotionRecognizer._diag_count += 1
+            if (
+                self._DIAG_EVERY > 0
+                and EmotionRecognizer._diag_count % self._DIAG_EVERY == 0
+            ):
+                top3_idx = np.argsort(probs)[::-1][:3]
+                top3_str = "  ".join(
+                    f"{EMOTION_LABELS[i]}={probs[i]:.3f}" for i in top3_idx
+                )
+                logger.info(
+                    "[EmotionDIAG] call={}  input_shape={}  "
+                    "checkpoint=enet_b0_8_best_afew  class_mapping=HSE-AffectNet8  "
+                    "top1=[{}]{}  top3=[{}]",
+                    EmotionRecognizer._diag_count,
+                    bgr_frame.shape,
+                    top_idx,
+                    EMOTION_LABELS[top_idx],
+                    top3_str,
+                )
+                if bgr_frame.shape[0] > 400 or bgr_frame.shape[1] > 400:
+                    logger.warning(
+                        "[EmotionDIAG] input_shape={} looks like a FULL FRAME — "
+                        "expected a face crop. Check SessionRunner._tick().",
+                        bgr_frame.shape,
+                    )
+            # ───────────────────────────────────────────────────────────────
 
             # Weighted average VA from class probabilities
             valence = float(np.dot(probs, _VALENCE_PRIOR))

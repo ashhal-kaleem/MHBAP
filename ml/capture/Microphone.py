@@ -40,24 +40,31 @@ class MicrophoneCapture:
         self._queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=queue_size)
         self._stop_event = threading.Event()
         self._stream = None
+        self._chunk_count = 0
 
     # ------------------------------------------------------------------
     def start(self) -> "MicrophoneCapture":
         self._stop_event.clear()
+        import logging
         try:
             import sounddevice as sd  # type: ignore
-        except ImportError:
-            return self   # sounddevice not installed — mic silently unavailable
+        except ImportError as exc:
+            logging.getLogger(__name__).error(f"MicrophoneCapture failed: sounddevice not installed ({exc})")
+            return self
 
-        self._stream = sd.InputStream(
-            samplerate=self.sample_rate,
-            channels=1,
-            dtype="float32",
-            blocksize=self.chunk_samples,
-            device=self.device,
-            callback=self._callback,
-        )
-        self._stream.start()
+        try:
+            self._stream = sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=1,
+                dtype="float32",
+                blocksize=self.chunk_samples,
+                device=self.device,
+                callback=self._callback,
+            )
+            self._stream.start()
+        except Exception as exc:
+            logging.getLogger(__name__).error(f"MicrophoneCapture failed to open audio stream: {exc}")
+            self._stream = None
         return self
 
     def stop(self) -> None:
@@ -94,3 +101,8 @@ class MicrophoneCapture:
             except queue.Empty:
                 pass
         self._queue.put_nowait(mono)
+        
+        self._chunk_count += 1
+        if self._chunk_count % 8 == 0:
+            import logging
+            logging.getLogger(__name__).info(f"MicrophoneCapture: read 8 chunks, latest shape={mono.shape}, max_amp={np.max(np.abs(mono)):.4f}")

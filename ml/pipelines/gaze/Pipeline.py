@@ -31,14 +31,33 @@ class GazePipeline(BasePipeline):
         if self._mesh is not None:
             return True
         try:
+            import os
+            import pathlib
+            import urllib.request
             import mediapipe as mp  # type: ignore
-            self._mesh = mp.solutions.face_mesh.FaceMesh(
-                static_image_mode=False,
-                max_num_faces=1,
-                refine_landmarks=True,  # enables iris landmarks 468-477
-                min_detection_confidence=0.5,
+            from mediapipe.tasks import python
+            from mediapipe.tasks.python import vision
+
+            weights_dir = pathlib.Path(__file__).parent.parent.parent / "models" / "weights"
+            task_path = weights_dir / "face_landmarker.task"
+            
+            if not task_path.exists():
+                weights_dir.mkdir(parents=True, exist_ok=True)
+                urllib.request.urlretrieve(
+                    "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                    str(task_path)
+                )
+
+            base_options = python.BaseOptions(model_asset_path=str(task_path))
+            options = vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                output_face_blendshapes=False,
+                output_facial_transformation_matrixes=False,
+                num_faces=1,
+                min_face_detection_confidence=0.5,
                 min_tracking_confidence=0.5,
             )
+            self._mesh = vision.FaceLandmarker.create_from_options(options)
             return True
         except ImportError:
             return False
@@ -51,12 +70,16 @@ class GazePipeline(BasePipeline):
             return zeros
 
         import cv2  # type: ignore
+        import mediapipe as mp
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self._mesh.process(rgb)
-        if not results.multi_face_landmarks:
+        
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        results = self._mesh.detect(mp_image)
+        
+        if not results.face_landmarks:
             return zeros
 
-        lm = results.multi_face_landmarks[0].landmark
+        lm = results.face_landmarks[0]
 
         # Iris centres (refine_landmarks indices)
         l_iris = lm[468]; r_iris = lm[473]

@@ -54,10 +54,12 @@ class HCIListener:
 
     # ------------------------------------------------------------------
     def start(self) -> "HCIListener":
+        import logging
         try:
             from pynput import mouse, keyboard  # type: ignore
-        except ImportError:
-            return self   # pynput not installed — HCI silently unavailable
+        except ImportError as exc:
+            logging.getLogger(__name__).error(f"HCIListener failed: pynput not installed ({exc})")
+            return self
 
         self._mouse_listener = mouse.Listener(
             on_move=self._on_move,
