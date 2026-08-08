@@ -25,34 +25,82 @@ export function useStream(sessionId: string | null) {
   const [status, setStatus] = useState<ConnectionStatus>('closed')
   const [latest, setLatest] = useState<WsMessage | null>(null)
   const [history, setHistory] = useState<WsMessage[]>([])
-  const wsRef = useRef<WebSocket | null>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const wsRef        = useRef<WebSocket | null>(null)
+  const timerRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Stores the deactivator for the currently live socket so that BOTH
+  // cleanup paths (unmount and sessionId change) can disable stale callbacks.
+  const deactivateRef = useRef<(() => void) | null>(null)
+
+  // Keep sessionId in a ref so `connect` never changes identity.
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
+
+  /**
+   * Tear down whatever is currently open — socket + timer + active flag.
+   * Safe to call multiple times (idempotent).
+   */
+  const teardown = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    // Deactivate the live socket's callbacks BEFORE closing so that the
+    // onclose handler cannot schedule a new reconnect timer.
+    if (deactivateRef.current) {
+      deactivateRef.current()
+      deactivateRef.current = null
+    }
+    if (wsRef.current) {
+      const old = wsRef.current
+      old.onopen = null
+      old.onmessage = null
+      old.onerror = null
+      old.onclose = null
+      old.close()
+      wsRef.current = null
+    }
+  }, [])
 
   const connect = useCallback(() => {
-    if (!sessionId) return
+    const sid = sessionIdRef.current
+    if (!sid) return
+
+    // Always tear down first so we never have two live sockets.
+    teardown()
 
     const path =
-      sessionId === 'demo'
+      sid === 'demo'
         ? '/api/v1/stream/demo'
-        : `/api/v1/stream/session/${sessionId}`
+        : `/api/v1/stream/session/${sid}`
     let url = `${WS_BASE}${path}`
 
     // Browser WebSockets cannot send Authorization headers.
-    // We must pass the token via query param as expected by get_ws_current_user.
+    // Pass the token via query param as expected by get_ws_current_user.
     const token = getToken()
-    if (token) {
-      url += `?access_token=${token}`
-    }
+    if (token) url += `?access_token=${token}`
 
     setStatus('connecting')
     const ws = new WebSocket(url)
     wsRef.current = ws
 
-    ws.onopen = () => setStatus('open')
+    // Per-socket active guard: prevents callbacks from a replaced socket
+    // from mutating shared state after teardown() has run.
+    let active = true
+    deactivateRef.current = () => { active = false }
+
+    ws.onopen = () => {
+      if (!active) return
+      setStatus('open')
+    }
 
     ws.onmessage = (evt: MessageEvent<string>) => {
+      if (!active) return
       try {
         const msg = JSON.parse(evt.data) as WsMessage
+        // Skip ping frames entirely — they carry no prediction data and
+        // would trigger unnecessary Dashboard re-renders every 25 seconds.
+        if (msg.type === 'ping') return
         setLatest(msg)
         setHistory((prev) => [...prev.slice(-(MAX_HISTORY - 1)), msg])
       } catch {
@@ -60,26 +108,42 @@ export function useStream(sessionId: string | null) {
       }
     }
 
-    ws.onerror = () => setStatus('error')
+    ws.onerror = () => {
+      if (!active) return
+      setStatus('error')
+    }
 
     ws.onclose = () => {
+      if (!active) return
       setStatus('closed')
       timerRef.current = setTimeout(connect, RECONNECT_DELAY_MS)
     }
-  }, [sessionId])
+  }, [teardown])  // teardown is stable (useCallback with [])
 
+
+  // ── Mount / unmount ───────────────────────────────────────────────────────
   useEffect(() => {
     connect()
-    return () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current)
-      wsRef.current?.close()
-    }
-  }, [connect])
+    return () => { teardown() }
+  }, [connect, teardown])
 
-  const disconnect = useCallback(() => {
-    if (timerRef.current !== null) clearTimeout(timerRef.current)
-    wsRef.current?.close()
-  }, [])
+  // ── sessionId change (demo ↔ live ↔ null) ────────────────────────────────
+  // Skip the initial render because the effect above already called connect().
+  const prevSessionIdRef = useRef(sessionId)
+  useEffect(() => {
+    if (prevSessionIdRef.current === sessionId) return
+    prevSessionIdRef.current = sessionId
+
+    // teardown() deactivates the old socket so its onclose won't fire.
+    teardown()
+    setHistory([])
+    setLatest(null)
+
+    if (sessionId) connect()
+    else setStatus('closed')
+  }, [sessionId, connect, teardown])
+
+  const disconnect = useCallback(() => { teardown() }, [teardown])
 
   return { status, latest, history, disconnect }
 }

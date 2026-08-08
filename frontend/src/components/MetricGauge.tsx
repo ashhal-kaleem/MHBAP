@@ -28,7 +28,7 @@ export function MetricGauge({ label, value, color, size = 88 }: Props) {
     <div className="flex flex-col items-center gap-1">
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r}
-          fill="none" stroke="#1f2937" strokeWidth={8} />
+          fill="none" stroke="#f3f4f6" strokeWidth={8} />
         <circle cx={size / 2} cy={size / 2} r={r}
           fill="none" stroke={hex} strokeWidth={8}
           strokeDasharray={circ} strokeDashoffset={offset}
@@ -36,8 +36,8 @@ export function MetricGauge({ label, value, color, size = 88 }: Props) {
           style={{ transition: 'stroke-dashoffset 0.4s ease' }}
         />
       </svg>
-      <span className="text-lg font-bold text-white -mt-1">{pct}%</span>
-      <span className="text-xs text-gray-400 uppercase tracking-wider">{label}</span>
+      <span className="text-lg font-bold text-gray-900 -mt-1">{pct}%</span>
+      <span className="text-xs text-gray-500 uppercase tracking-wider">{label}</span>
     </div>
   )
 }

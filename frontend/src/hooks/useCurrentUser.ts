@@ -8,16 +8,6 @@ const PASSWORD_KEY = 'mhbap_password'
 
 const BASE = '/api/v1'
 
-function randomSuffix(): string {
-  return Math.random().toString(36).slice(2, 8)
-}
-
-/** Generate a password that satisfies the backend strength validator:
- *  ≥ 8 chars, at least one digit or special char. */
-function generatePassword(): string {
-  return `Mhbap-${Math.random().toString(36).slice(2, 10)}!1`
-}
-
 /**
  * Ensures an authenticated User record exists for this browser session.
  *
@@ -104,31 +94,7 @@ export function useCurrentUser() {
           localStorage.removeItem(USER_ID_KEY)
         }
 
-        // ── Step 3: register a fresh guest account ────────────────────────
-        const suffix = randomSuffix()
-        const email = `guest-${suffix}@mhbap.example`
-        const password = generatePassword()
-
-        const regRes = await fetch(`${BASE}/auth/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, display_name: `Guest ${suffix}` }),
-        })
-        if (!regRes.ok) {
-          const body = await regRes.text()
-          throw new Error(`Registration failed (${regRes.status}): ${body}`)
-        }
-        const { access_token, user_id } = await regRes.json()
-
-        localStorage.setItem(TOKEN_KEY, access_token)
-        localStorage.setItem(USER_ID_KEY, user_id)
-        localStorage.setItem(EMAIL_KEY, email)
-        localStorage.setItem(PASSWORD_KEY, password)
-
-        const userRes = await fetch(`${BASE}/users/${user_id}`, {
-          headers: { Authorization: `Bearer ${access_token}` },
-        })
-        if (userRes.ok && !cancelled) setUser(await userRes.json())
+        // If token and stored credentials fail, the user is unauthenticated
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load user')
       } finally {

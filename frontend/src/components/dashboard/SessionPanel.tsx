@@ -3,13 +3,12 @@
  *
  * Features:
  *  - Start / End session
- *  - Demo mode toggle
  *  - Per-session: delete, rename context, CSV export
  *  - Inline stats card for completed sessions
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
-import { Download, Edit2, History, Play, Radio, Square, Trash2, X } from 'lucide-react'
+import { Download, Edit2, History, Play, Square, Trash2, X } from 'lucide-react'
 import {
   createSession,
   deleteSession,
@@ -152,10 +151,10 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
   const isLive = activeSession?.status === 'active'
 
   return (
-    <div className="rounded-xl bg-gray-800 p-5">
+    <div className="rounded-2xl bg-white/80 backdrop-blur-sm border border-gray-100 shadow-sm p-6">
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-200">Session</p>
+        <p className="text-sm font-semibold text-gray-900">Session</p>
         <div className="flex items-center gap-2">
           {!isLive ? (
             <button
@@ -179,17 +178,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
               </button>
             </>
           )}
-          <button
-            onClick={() => onSelectSession(null)}
-            className={clsx(
-              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition',
-              activeSession === null
-                ? 'bg-gray-700 text-white'
-                : 'bg-gray-900 text-gray-400 hover:bg-gray-700',
-            )}
-          >
-            <Radio className="h-3.5 w-3.5" /> Demo
-          </button>
+
         </div>
       </div>
 
@@ -197,19 +186,19 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
 
       {/* History list */}
       <div className="mt-4">
-        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-gray-400">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-gray-500">
           <History className="h-3.5 w-3.5" /> History
         </p>
         {!user && <p className="text-xs text-gray-500">Loading user…</p>}
         {user && sessions.length === 0 && (
-          <p className="text-xs text-gray-500">No sessions yet — start one above.</p>
+          <div className="text-sm text-gray-500 italic p-6 text-center border border-dashed border-gray-200 rounded-xl bg-gray-50/50 mt-2">No sessions yet — start one above.</div>
         )}
         <ul className="max-h-52 space-y-1 overflow-y-auto pr-1">
           {sessions.map((s) => (
             <li key={s.id}>
               {editingId === s.id ? (
                 /* Inline rename editor */
-                <div className="flex items-center gap-1 rounded-lg bg-gray-700 px-2 py-1">
+                <div className="flex items-center gap-1 rounded-lg bg-white border border-gray-200 px-2 py-1 shadow-sm">
                   <input
                     ref={editInputRef}
                     value={editValue}
@@ -218,29 +207,29 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
                       if (e.key === 'Enter') commitContext(s.id)
                       if (e.key === 'Escape') cancelEditing()
                     }}
-                    className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-gray-500"
+                    className="min-w-0 flex-1 bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-400"
                     placeholder="Context label…"
                     maxLength={120}
                   />
-                  <button onClick={() => commitContext(s.id)} className="text-green-400 hover:text-green-300 text-xs px-1">✓</button>
-                  <button onClick={cancelEditing} className="text-gray-400 hover:text-gray-300"><X className="h-3 w-3" /></button>
+                  <button onClick={() => commitContext(s.id)} className="text-green-500 hover:text-green-600 text-xs px-1">✓</button>
+                  <button onClick={cancelEditing} className="text-gray-400 hover:text-gray-600"><X className="h-3 w-3" /></button>
                 </div>
               ) : (
                 /* Normal row */
                 <div
                   className={clsx(
                     'group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition',
-                    activeSession?.id === s.id ? 'bg-gray-700' : 'hover:bg-gray-900',
+                    activeSession?.id === s.id ? 'bg-blue-50/80 border border-blue-100 shadow-sm' : 'hover:bg-gray-50/80 border border-transparent',
                   )}
                 >
                   <button
                     onClick={() => onSelectSession(s)}
                     className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   >
-                    <span className={clsx('text-xs', activeSession?.id === s.id ? 'text-white' : 'text-gray-400')}>
+                    <span className={clsx('text-xs', activeSession?.id === s.id ? 'text-blue-900 font-medium' : 'text-gray-500')}>
                       <span className="font-mono">{formatDateTime(s.started_at)}</span>
                       {s.context && s.context !== 'unspecified' && s.context !== 'live' && (
-                        <span className="ml-1.5 text-gray-500">· {s.context}</span>
+                        <span className="ml-1.5 text-gray-400">· {s.context}</span>
                       )}
                     </span>
                     <span className={clsx('ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', STATUS_STYLE[s.status])}>
@@ -253,7 +242,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
                     <button
                       title="Rename context"
                       onClick={() => startEditing(s)}
-                      className="rounded p-1 text-gray-400 hover:bg-gray-600 hover:text-white"
+                      className="rounded p-1 text-gray-400 hover:bg-white hover:text-gray-900 hover:shadow-sm border border-transparent hover:border-gray-200"
                     >
                       <Edit2 className="h-3 w-3" />
                     </button>
@@ -262,7 +251,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
                         title="Export CSV"
                         onClick={() => handleExport(s.id)}
                         disabled={busy}
-                        className="rounded p-1 text-gray-400 hover:bg-gray-600 hover:text-white disabled:opacity-40"
+                        className="rounded p-1 text-gray-400 hover:bg-white hover:text-gray-900 hover:shadow-sm border border-transparent hover:border-gray-200 disabled:opacity-40"
                       >
                         <Download className="h-3 w-3" />
                       </button>
@@ -271,7 +260,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
                       title="Delete session"
                       onClick={() => handleDelete(s)}
                       disabled={busy}
-                      className="rounded p-1 text-gray-400 hover:bg-red-900 hover:text-red-400 disabled:opacity-40"
+                      className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-100 border border-transparent disabled:opacity-40"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>

@@ -30,21 +30,21 @@ const METRIC_ROWS: Array<{ label: string; key: keyof SessionStats; fmt: (v: Sess
 
 export function SessionStatsCard({ stats, loading }: Props) {
   return (
-    <div className={clsx('mt-4 rounded-lg border border-gray-700 p-4 text-xs', loading && 'opacity-50')}>
-      <p className="mb-3 font-semibold text-gray-300">Session Summary</p>
+    <div className={clsx('mt-4 rounded-xl border border-gray-200 bg-gray-50/50 p-4 text-xs', loading && 'opacity-50')}>
+      <p className="mb-3 font-semibold text-gray-900">Session Summary</p>
 
       <div className="mb-3 grid grid-cols-2 gap-2">
-        <div className="rounded-md bg-gray-900 p-2">
+        <div className="rounded-md bg-white border border-gray-100 shadow-sm p-2">
           <p className="text-gray-500">Predictions</p>
-          <p className="mt-0.5 font-mono text-white">{stats.prediction_count}</p>
+          <p className="mt-0.5 font-mono text-gray-900">{stats.prediction_count}</p>
         </div>
-        <div className="rounded-md bg-gray-900 p-2">
+        <div className="rounded-md bg-white border border-gray-100 shadow-sm p-2">
           <p className="text-gray-500">Duration</p>
-          <p className="mt-0.5 font-mono text-white">{dur(stats.duration_seconds)}</p>
+          <p className="mt-0.5 font-mono text-gray-900">{dur(stats.duration_seconds)}</p>
         </div>
-        <div className="col-span-2 rounded-md bg-gray-900 p-2">
+        <div className="col-span-2 rounded-md bg-white border border-gray-100 shadow-sm p-2">
           <p className="text-gray-500">Dominant Emotion</p>
-          <p className="mt-0.5 font-mono capitalize text-white">{stats.dominant_emotion ?? '—'}</p>
+          <p className="mt-0.5 font-mono capitalize text-gray-900">{stats.dominant_emotion ?? '—'}</p>
         </div>
       </div>
 
@@ -52,7 +52,7 @@ export function SessionStatsCard({ stats, loading }: Props) {
         {METRIC_ROWS.map(({ label, key, fmt }) => (
           <div key={key} className="flex items-center justify-between">
             <span className="text-gray-500">{label}</span>
-            <span className="font-mono text-white">{fmt(stats[key])}</span>
+            <span className="font-mono text-gray-900">{fmt(stats[key])}</span>
           </div>
         ))}
       </div>

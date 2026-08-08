@@ -11,7 +11,7 @@ const MAP: Record<ConnectionStatus, { label: string; dot: string }> = {
 export function StatusBadge({ status }: { status: ConnectionStatus }) {
   const { label, dot } = MAP[status]
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-800 px-3 py-1 text-xs font-medium text-gray-200">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 shadow-sm">
       <span className={clsx('h-2 w-2 rounded-full', dot)} />
       {label}
     </span>

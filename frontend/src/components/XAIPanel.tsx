@@ -59,13 +59,13 @@ function ContribBars({ weights }: { weights: Record<string, number> }) {
     <div className="space-y-2">
       {entries.map(([mod, w]) => (
         <div key={mod} className="space-y-0.5">
-          <div className="flex justify-between text-xs text-gray-400">
+          <div className="flex justify-between text-xs text-gray-500">
             <span>{MODAL_LABELS[mod] ?? mod}</span>
-            <span className="font-mono">{Math.round(w * 100)}%</span>
+            <span className="font-mono text-gray-900">{Math.round(w * 100)}%</span>
           </div>
-          <div className="h-2 w-full rounded-full bg-gray-700 overflow-hidden">
+          <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
             <div
-              className={clsx('h-2 rounded-full transition-all duration-500', MODAL_BAR[mod] ?? 'bg-gray-500')}
+              className={clsx('h-2 rounded-full transition-all duration-500', MODAL_BAR[mod] ?? 'bg-gray-400')}
               style={{ width: `${Math.min(w * 100, 100)}%` }}
             />
           </div>
@@ -83,8 +83,11 @@ export function XAIPanel({ weights, explanation, summary, summaryLoading }: Prop
   // ── empty state ──────────────────────────────────────────────────────────
   if (!weights && !isSummaryMode) {
     return (
-      <div className="rounded-xl bg-gray-800 p-4 text-sm text-gray-500">
-        XAI data will appear once the inference pipeline is running.
+      <div className="rounded-2xl bg-white/80 backdrop-blur-sm border border-gray-100 shadow-sm p-8 flex flex-col items-center justify-center text-center text-sm text-gray-500 min-h-[250px]">
+        <svg className="w-8 h-8 mx-auto mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+        <p>XAI data will appear once the inference pipeline is running.</p>
       </div>
     )
   }
@@ -100,7 +103,7 @@ export function XAIPanel({ weights, explanation, summary, summaryLoading }: Prop
             'rounded-md px-2 py-1 text-[10px] font-medium capitalize border transition',
             activeHead === h
               ? HEAD_COLOR[h]
-              : 'border-transparent text-gray-500 hover:text-gray-300',
+              : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50',
           )}
         >
           {h}
@@ -113,9 +116,9 @@ export function XAIPanel({ weights, explanation, summary, summaryLoading }: Prop
   if (isSummaryMode) {
     const headWeights = summary?.avg_weights?.[activeHead] ?? {}
     return (
-      <div className="rounded-xl bg-gray-800 p-4 space-y-3">
+      <div className="rounded-2xl bg-white/80 backdrop-blur-sm border border-gray-100 shadow-sm p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-gray-200">SHAP — Session Average</p>
+          <p className="text-sm font-semibold text-gray-900">SHAP — Session Average</p>
           {summary && (
             <span className="text-[10px] text-gray-500">
               {summary.prediction_count} predictions
@@ -128,9 +131,9 @@ export function XAIPanel({ weights, explanation, summary, summaryLoading }: Prop
         {summary && (
           <>
             {summary.dominant_modality && (
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-500">
                 Dominant signal:{' '}
-                <span className="font-medium text-white capitalize">
+                <span className="font-medium text-gray-900 capitalize">
                   {MODAL_LABELS[summary.dominant_modality] ?? summary.dominant_modality}
                 </span>
               </p>
@@ -146,12 +149,12 @@ export function XAIPanel({ weights, explanation, summary, summaryLoading }: Prop
   // ── LIVE mode ─────────────────────────────────────────────────────────────
   const liveWeights = weights ?? {}
   return (
-    <div className="rounded-xl bg-gray-800 p-4 space-y-3">
-      <p className="text-sm font-semibold text-gray-200">Modality Contributions (SHAP)</p>
+    <div className="rounded-2xl bg-white/80 backdrop-blur-sm border border-gray-100 shadow-sm p-5 space-y-3">
+      <p className="text-sm font-semibold text-gray-900">Modality Contributions (SHAP)</p>
       <TabBar />
       <ContribBars weights={liveWeights} />
       {explanation && (
-        <p className="mt-2 rounded-lg bg-gray-700/60 px-3 py-2 text-xs text-gray-300 leading-relaxed border border-gray-700">
+        <p className="mt-2 rounded-xl bg-blue-50/80 px-4 py-3 text-xs text-blue-900 leading-relaxed border border-blue-100">
           {explanation}
         </p>
       )}

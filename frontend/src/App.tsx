@@ -1,12 +1,65 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Dashboard from '@/pages/Dashboard'
 import AnalyticsPage from '@/pages/AnalyticsPage'
 import EvaluationPage from '@/pages/EvaluationPage'
+import LandingPage from '@/pages/LandingPage'
+import LoginPage from '@/pages/LoginPage'
+import SignupPage from '@/pages/SignupPage'
+import { logout } from '@/services/api'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
-type Tab = 'dashboard' | 'analytics' | 'evaluation'
+type Tab = 'landing' | 'login' | 'signup' | 'dashboard' | 'analytics' | 'evaluation'
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('dashboard')
+  const { user, loading } = useCurrentUser()
+  const [tab, setTab] = useState<Tab>('landing')
+
+  useEffect(() => {
+    if (!loading) {
+      if (user && (tab === 'landing' || tab === 'login' || tab === 'signup')) {
+        setTab('dashboard')
+      } else if (!user && (tab === 'dashboard' || tab === 'analytics' || tab === 'evaluation')) {
+        setTab('login')
+      }
+    }
+  }, [user, loading, tab])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">
+        <div className="w-8 h-8 border-4 border-plum/30 border-t-plum rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (tab === 'landing') {
+    return (
+      <LandingPage 
+        onGetStarted={() => setTab('signup')} 
+        onLogin={() => setTab('login')}
+      />
+    )
+  }
+
+  if (tab === 'login') {
+    return (
+      <LoginPage 
+        onBack={() => setTab('landing')} 
+        onLoginSuccess={() => window.location.reload()} 
+        onNavigateSignup={() => setTab('signup')}
+      />
+    )
+  }
+
+  if (tab === 'signup') {
+    return (
+      <SignupPage 
+        onBack={() => setTab('landing')} 
+        onSignupSuccess={() => window.location.reload()} 
+        onNavigateLogin={() => setTab('login')}
+      />
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -24,10 +77,21 @@ export default function App() {
             }`}
           >{t}</button>
         ))}
+        
+        {/* Simple logout button in nav */}
+        <button
+          onClick={async () => {
+            await logout();
+            window.location.reload();
+          }}
+          className="ml-auto text-sm px-4 py-1.5 rounded text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+        >
+          Logout
+        </button>
       </nav>
 
       {/* Page content */}
-      {tab === 'dashboard' ? <Dashboard /> : tab === 'analytics' ? <AnalyticsPage /> : <EvaluationPage />}
+      {tab === 'dashboard' ? <Dashboard user={user} /> : tab === 'analytics' ? <AnalyticsPage /> : <EvaluationPage />}
     </div>
   )
 }
