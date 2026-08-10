@@ -2,7 +2,7 @@
 Voice pipeline — raw PCM audio chunk → prosodic + spectral features.
 
 Input : 1-D float32 numpy array (mono, 16 kHz recommended)
-Output: dict of 20 floats
+Output: dict of 19 floats
 
 Features
 --------

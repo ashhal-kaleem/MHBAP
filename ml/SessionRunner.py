@@ -202,6 +202,9 @@ class SessionRunner:
         self.latest_prediction = prediction
 
         # ── End-to-end pipeline diagnostic (every ~1 s) ──────────────────
+        top_emo = max(prediction.emotion_scores, key=prediction.emotion_scores.get) if prediction.emotion_scores else "?"
+        top_score = prediction.emotion_scores.get(top_emo, 0.0)
+
         if self._tick_n <= 30:
             # Detailed per‑frame diagnostic (first 30 frames)
             logger.info(
@@ -213,8 +216,6 @@ class SessionRunner:
             )
         if self._tick_n % 15 == 0:
             face_nonzero = sum(1 for v in face_feats.values() if v != 0.0) if face_feats else 0
-            top_emo = max(prediction.emotion_scores, key=prediction.emotion_scores.get) if prediction.emotion_scores else "?"
-            top_score = prediction.emotion_scores.get(top_emo, 0.0)
             shap_str = ", ".join(f"{k}={v:.3f}" for k, v in self.latest_shap.items()) if self.latest_shap else "(empty)"
             logger.info(
                 "PIPELINE tick={} | frame={} | crop={} | face_AU_nonzero={}/{} | "

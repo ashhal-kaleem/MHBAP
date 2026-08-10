@@ -45,6 +45,7 @@ dependencies = [
     # timm — required by EmotionRecognizer (EfficientNet-B0/AffectNet-8 backbone)
     "timm>=1.0.3",
     "mediapipe>=1.0.0",
+    "captum>=0.8.0",
 ]
 
 [project.optional-dependencies]
@@ -57,12 +58,13 @@ ml = [
     "transformers>=4.42.0",
     # Audio
     "sounddevice>=0.4.7",
-    "librosa>=0.10.2",
+    "librosa>=0.11.0",
     "opensmile>=2.5.0",
     # HCI
     "pynput>=1.7.7",
     # XAI
     "shap>=0.45.0",
+    "captum>=0.8.0",
     "grad-cam>=1.5.0",
     # Data science
     # numpy moved to project.dependencies (required by backend at runtime)

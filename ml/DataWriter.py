@@ -14,10 +14,8 @@ from datetime import datetime
 from typing import Any, Dict
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.Session import get_session_factory
-from app.db.models.ModalityFeature import ModalityFeature
+# Backend DB imports are deferred into _flush_loop() to keep this module
+# importable in the ML-only test environment (no app.db stack required).
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +74,10 @@ class DataWriter:
                         batch.append(self._queue.get_nowait())
                     except asyncio.QueueEmpty:
                         break
+
+                # Deferred: import only when the flush loop actually runs
+                from app.db.Session import get_session_factory
+                from app.db.models.ModalityFeature import ModalityFeature
 
                 async with get_session_factory()() as db:
                     rows = [

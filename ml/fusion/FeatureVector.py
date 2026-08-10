@@ -1,6 +1,6 @@
 """feature_vector.py — canonical feature layout for MHBAP fusion.
 
-Total 58 dims:  face[0:12] gaze[12:17] pose[17:28] voice[28:48] hci[48:58]
+Total 57 dims:  face[0:12] gaze[12:17] pose[17:28] voice[28:47] hci[47:57]
 """
 from __future__ import annotations
 from typing import Dict, List
@@ -31,4 +31,4 @@ MODALITY_KEYS: Dict[str, List[str]] = {
     "face": FACE_KEYS, "gaze": GAZE_KEYS, "pose": POSE_KEYS,
     "voice": VOICE_KEYS, "hci": HCI_KEYS,
 }
-FEATURE_DIM = sum(len(v) for v in MODALITY_KEYS.values())  # 58
+FEATURE_DIM = sum(len(v) for v in MODALITY_KEYS.values())  # 57
