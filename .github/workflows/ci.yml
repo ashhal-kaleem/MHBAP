@@ -97,6 +97,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug ml/ presence
+        run: |
+          echo "=== Git commit ==="
+          git rev-parse HEAD
+          echo "=== ml/ directory exists? ==="
+          ls -la ml/ || echo "NOT FOUND"
+          echo "=== First 10 files in ml/ ==="
+          find ml/ -maxdepth 2 -type f | head -10 || echo "NONE"
+          echo "=== git ls-files ml ==="
+          git ls-files ml
+          echo "=== Dockerfile lines around COPY ml/ ==="
+          grep -n "ml/" backend/Dockerfile | head -20
+
       - name: Build backend image
         run: docker build -t mhbap-backend:ci -f backend/Dockerfile .
 
