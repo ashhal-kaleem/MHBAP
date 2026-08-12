@@ -113,3 +113,7 @@ AUDIT_REPORT.md
 # Docs build
 site/
 docs/_build/
+# Generated TypeScript build info
+**/*.tsbuildinfo
+# Downloaded MediaPipe model assets
+ml/models/weights/*.task

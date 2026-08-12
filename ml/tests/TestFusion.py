@@ -165,4 +165,4 @@ class TestNLExplainer(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.Main()
+    unittest.main()

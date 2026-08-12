@@ -34,7 +34,7 @@ def check(name, ok, detail=""):
     results.append((name, ok))
     return ok
 
-# ── Load dataset ────────────────────────────────────────────────────────────
+# -- Load dataset -----------------------------------------------------------
 print("\n=== Loading dataset (seed=42) ===")
 from ml.training.RealDataset import make_real_dataset
 train_s, val_s, test_s = make_real_dataset(seed=42)
@@ -47,7 +47,7 @@ print(f"  train class dist: {np.bincount(y_tr, minlength=4).tolist()}")
 print(f"  val   class dist: {np.bincount(y_va, minlength=4).tolist()}")
 print(f"  test  class dist: {np.bincount(y_te, minlength=4).tolist()}")
 
-# ── CHECK 1: Disjointness ────────────────────────────────────────────────────
+# -- CHECK 1: Disjointness ---------------------------------------------------
 print("\n=== CHECK 1: Split disjointness ===")
 # Convert rows to hashable tuples and check for intersection
 def row_set(X): return set(map(tuple, X.tolist()))
@@ -57,11 +57,11 @@ te_set = row_set(X_te)
 tr_va = tr_set & va_set
 tr_te = tr_set & te_set
 va_te = va_set & te_set
-check("train ∩ val = ∅",  len(tr_va)==0, f"overlap={len(tr_va)}")
-check("train ∩ test = ∅", len(tr_te)==0, f"overlap={len(tr_te)}")
-check("val ∩ test = ∅",   len(va_te)==0, f"overlap={len(va_te)}")
+check("train intersect val = empty",  len(tr_va)==0, f"overlap={len(tr_va)}")
+check("train intersect test = empty", len(tr_te)==0, f"overlap={len(tr_te)}")
+check("val intersect test = empty",   len(va_te)==0, f"overlap={len(va_te)}")
 
-# ── CHECK 2: No global scaler fitted on full pool ────────────────────────────
+# -- CHECK 2: No global scaler fitted on full pool ---------------------------
 print("\n=== CHECK 2: No global normalization leakage ===")
 # All feature transforms in real_dataset.py are per-sample pixel stats or
 # np.clip. Verify features are NOT zero-mean/unit-variance (which would
@@ -70,14 +70,14 @@ tr_mean = X_tr.mean()
 tr_std  = X_tr.std()
 te_mean = X_te.mean()
 te_std  = X_te.std()
-check("Train features not globally normalized (mean≠0)",
+check("Train features not globally normalized (mean!=0)",
       abs(tr_mean) > 0.01,
       f"train mean={tr_mean:.4f} std={tr_std:.4f}")
-check("Test features not globally normalized (mean≠0)",
+check("Test features not globally normalized (mean!=0)",
       abs(te_mean) > 0.01,
       f"test  mean={te_mean:.4f} std={te_std:.4f}")
 
-# ── CHECK 3: No circular label encoding ─────────────────────────────────────
+# -- CHECK 3: No circular label encoding -------------------------------------
 print("\n=== CHECK 3: Emotion label not linearly decodable from features ===")
 # Fit a logistic regression on train, evaluate on test.
 # If accuracy >> random (25%), there is some signal from AUs.
@@ -94,7 +94,7 @@ check("Linear probe accuracy > chance (some real AU signal)",
       lr_acc > 0.26,
       f"LogReg accuracy = {lr_acc:.4f}  (chance = 0.25)")
 
-# ── CHECK 4: Saved metrics match recomputed ──────────────────────────────────
+# -- CHECK 4: Saved metrics match recomputed ---------------------------------
 print("\n=== CHECK 4: Saved checkpoint metrics match recomputed ===")
 ckpt_path    = r"D:\MHBAP\ml\models\weights\tcmt_trained.pt"
 metrics_path = r"D:\MHBAP\ml\models\weights\tcmt_eval_metrics.json"
@@ -152,7 +152,7 @@ except FileNotFoundError:
     print(f"  SKIP: checkpoint not found at {ckpt_path}")
     results.append(("Checkpoint exists", False))
 
-# ── CHECK 5: Stress scaling consistency ──────────────────────────────────────
+# -- CHECK 5: Stress scaling consistency -------------------------------------
 print("\n=== CHECK 5: Stress scaling ===")
 # Labels are in [0,1]. Model outputs sigmoid*10. Eval divides by 10.
 # Verify label range and that recomputed stress RMSE is plausible.
@@ -169,7 +169,7 @@ try:
 except NameError:
     pass  # recomp not available (checkpoint missing)
 
-# ── CHECK 6: Sampler/weight leakage ─────────────────────────────────────────
+# -- CHECK 6: Sampler/weight leakage -----------------------------------------
 print("\n=== CHECK 6: WeightedRandomSampler uses train labels only ===")
 # Verify that class counts used for weighting come from train_split["emotion"],
 # not from val or test. This is structural -- we can only verify intent via

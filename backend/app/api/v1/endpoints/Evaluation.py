@@ -19,7 +19,7 @@ from app.schemas.Evaluation import (
     AblationResultSchema,
 )
 
-router = APIRouter(prefix="/Evaluation", tags=["evaluation"])
+router = APIRouter(tags=["evaluation"])
 
 
 def _to_report_schema(report) -> EvaluationReportSchema:
@@ -49,6 +49,7 @@ def _to_report_schema(report) -> EvaluationReportSchema:
 
 
 @router.get("/Benchmark", response_model=BenchmarkResponse)
+@router.get("/benchmark", response_model=BenchmarkResponse, include_in_schema=False)
 def benchmark(
     n_samples: int = Query(1000, ge=100, le=10000),
     seed: int = Query(42),
@@ -64,6 +65,7 @@ def benchmark(
 
 
 @router.get("/Ablation", response_model=AblationStudyResponse)
+@router.get("/ablation", response_model=AblationStudyResponse, include_in_schema=False)
 def ablation(
     n_samples: int = Query(500, ge=100, le=5000),
     seed: int = Query(42),

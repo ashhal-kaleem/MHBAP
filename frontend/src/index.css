@@ -2,10 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-* { box-sizing: border-box; }
+/* ── Base resets ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
 
 body {
   margin: 0;
-  background-color: #111827;
-  color: #f9fafb;
+  background-color: #FAF9F6;  /* ivory */
+  color: #111827;              /* gray-900 */
+}
+
+/* ── Custom scrollbar (Webkit) ───────────────────────────────────────────── */
+::-webkit-scrollbar         { width: 5px; height: 5px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: #d1d5db; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* ── Tabular numbers for metrics ─────────────────────────────────────────── */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* ── Utility: very subtle plum tint background ───────────────────────────── */
+.bg-plum\/3  { background-color: rgba(74,20,140,0.03); }
+.bg-plum\/8  { background-color: rgba(74,20,140,0.08); }
+
+/* ── Focus ring override for accessibility ───────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #4a148c;
+  outline-offset: 2px;
+  border-radius: 4px;
 }

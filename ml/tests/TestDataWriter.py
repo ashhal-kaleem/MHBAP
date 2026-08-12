@@ -8,7 +8,6 @@ so no app.db imports are needed.
 from __future__ import annotations
 
 import asyncio
-import logging
 import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -100,19 +99,56 @@ class TestDataWriterWrite(unittest.TestCase):
         self.assertEqual(writer._queue.qsize(), 1)
 
     def test_write_forbidden_logs_warning(self):
-        """A full-queue drop must emit a WARNING-level log message."""
+        """
+        A full-queue drop must call logger.warning with a 'queue full' message.
+
+        Uses mock.patch.object on the stdlib logger directly so the assertion
+        is independent of logging handlers, level configuration, loguru shims,
+        or pytest log-capture plugins — any of which can silently swallow
+        records when assertLogs() is used with a logger object.
+        """
+        from unittest.mock import patch
         from ml.DataWriter import DataWriter
         import ml.DataWriter as dw_module
 
         writer = DataWriter(queue_size=1)
-        _run(writer.write(_uuid(), "face", {}, _now()))  # fill queue
+        _run(writer.write(_uuid(), "face", {}, _now()))  # fill queue to capacity
 
-        with self.assertLogs(dw_module.logger, level=logging.WARNING) as cm:
-            _run(writer.write(_uuid(), "voice", {}, _now()))
+        with patch.object(dw_module.logger, "warning") as mock_warn:
+            _run(writer.write(_uuid(), "voice", {}, _now()))  # must drop + warn
 
         self.assertTrue(
-            any("queue full" in msg.lower() for msg in cm.output),
-            f"Expected queue full warning, got: {cm.output}",
+            mock_warn.called,
+            "logger.warning was never called on a full-queue write",
+        )
+        # Verify the message text mentions queue fullness
+        warn_args = " ".join(str(a) for a in mock_warn.call_args[0]).lower()
+        self.assertIn(
+            "queue full",
+            warn_args,
+            f"logger.warning called but message does not mention 'queue full': {mock_warn.call_args}",
+        )
+
+    def test_write_no_warning_when_queue_has_space(self):
+        """
+        logger.warning must NOT be called when the queue has room.
+
+        Negative-path companion to test_write_forbidden_logs_warning:
+        confirms the warning is triggered by fullness, not by every write.
+        """
+        from unittest.mock import patch
+        from ml.DataWriter import DataWriter
+        import ml.DataWriter as dw_module
+
+        writer = DataWriter(queue_size=4)
+
+        with patch.object(dw_module.logger, "warning") as mock_warn:
+            _run(writer.write(_uuid(), "face", {}, _now()))
+            _run(writer.write(_uuid(), "gaze", {}, _now()))
+
+        self.assertFalse(
+            mock_warn.called,
+            f"logger.warning fired unexpectedly on a non-full queue: {mock_warn.call_args_list}",
         )
 
     def test_write_multiple_modalities_fit(self):

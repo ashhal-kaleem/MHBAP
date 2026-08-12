@@ -34,13 +34,16 @@ from ml.fusion.Tcmt import TCMT, EMOTION_CLASSES, _TORCH_AVAILABLE
 from loguru import logger
 
 
-# AffectNet-8 labels (used by EmotionRecognizer pretrained path)
+# AffectNet-8 labels — used only by EmotionRecognizer (pretrained path).
+# Must NOT be used by the TCMT fallback path; use TCMT_EMOTION_LABELS there.
+# Order matches EmotionRecognizer.EMOTION_LABELS (HSE enet_b0_8_best_afew.pt).
 EMOTION_LABELS = [
-    "neutral", "happy", "sad", "surprise",
-    "fear", "disgust", "anger", "contempt",
+    "anger", "contempt", "disgust", "fear",
+    "happiness", "neutral", "sadness", "surprise",
 ]
 
-# TCMT outputs 4-class logits (0=neutral, 1=happy, 2=sad, 3=angry)
+# TCMT outputs 4-class logits: 0=neutral, 1=happy, 2=sad, 3=angry
+# These are the labels emitted when EmotionRecognizer is unavailable (no crop / no checkpoint).
 TCMT_EMOTION_LABELS = [
     "neutral", "happy", "sad", "angry"
 ]

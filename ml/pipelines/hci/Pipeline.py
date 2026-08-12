@@ -112,7 +112,9 @@ class HCIPipeline(BasePipeline):
                               if (float(mouse_moves[i]["ts"]) - float(mouse_moves[i - 1]["ts"])) > 0.5)
             mouse_pause_ratio = float(pause_count / max(len(mouse_moves) - 1, 1))
         else:
-            mouse_pause_ratio = 1.0
+            # No events this tick → unknown, not "fully paused"; use 0.0 so the
+            # TCMT feature vector is neutral rather than saturated at 1.0.
+            mouse_pause_ratio = 0.0
 
         # Interaction entropy
         type_counts = {}

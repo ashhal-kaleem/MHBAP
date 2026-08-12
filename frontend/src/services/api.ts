@@ -20,6 +20,11 @@ export function setToken(token: string, userId?: string): void {
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem('mhbap_user_id')
+  // Fix #4: also clear stored credentials so useCurrentUser doesn't
+  // auto-re-login after logout (mhbap_email + mhbap_password are the
+  // keys useCurrentUser uses for Step 2 re-authentication).
+  localStorage.removeItem('mhbap_email')
+  localStorage.removeItem('mhbap_password')
 }
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
@@ -69,6 +74,9 @@ export async function login(email: string, password: string): Promise<TokenRespo
 export async function logout(): Promise<void> {
   try {
     await json<void>('/auth/logout', { method: 'POST' })
+  } catch {
+    // Backend logout failures (401 expired token, Redis down, network blip)
+    // are non-fatal — clearToken() below handles the client side.
   } finally {
     clearToken()
   }

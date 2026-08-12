@@ -75,6 +75,7 @@ async def latest_session_prediction(
 
 
 @router.get("/Session/{session_id}/xai", response_model=XAISummary)
+@router.get("/session/{session_id}/xai", response_model=XAISummary, include_in_schema=False)
 async def session_xai_summary(
     session_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),

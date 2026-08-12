@@ -55,7 +55,7 @@ export type WsPayload =
   | null
 
 export interface WsMessage {
-  type: 'prediction' | 'session_start' | 'session_end' | 'error' | 'ping'
+  type: 'prediction' | 'session_start' | 'session_end' | 'error' | 'ping' | 'frame'
   payload: WsPayload
 }
 

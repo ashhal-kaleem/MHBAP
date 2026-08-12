@@ -231,6 +231,10 @@ class TestSessionRunnerPassesFrameToPredictor:
             m = MagicMock()
             m.process.return_value = {}
             setattr(runner, attr, m)
+        # Provide a valid normalized bbox so _crop_face can produce a real crop.
+        # _FAKE_FRAME is 100x100; this bbox covers most of the frame so the
+        # resulting crop is well above the 64px minimum and non-None.
+        runner._face.last_face_bbox = (0.1, 0.1, 0.9, 0.9)
 
         # Writer mock
         runner._writer = MagicMock()
@@ -281,9 +285,9 @@ class TestSessionRunnerPassesFrameToPredictor:
             await runner._tick()
 
         passed_frame = mock_predictor.predict.call_args.kwargs["bgr_frame"]
-        assert np.array_equal(passed_frame, _FAKE_FRAME), (
-            "bgr_frame passed to predict() does not match the camera frame."
-        )
+        assert passed_frame is not None, "bgr_frame is None — _crop_face returned nothing."
+        assert isinstance(passed_frame, np.ndarray), "bgr_frame must be ndarray, got: " + type(passed_frame).__name__
+        assert passed_frame.ndim == 3 and passed_frame.shape[2] == 3, "bgr_frame must be HxWx3, got: " + str(passed_frame.shape)
 
     @pytest.mark.asyncio
     async def test_tick_passes_feature_dicts(self):

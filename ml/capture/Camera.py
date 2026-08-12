@@ -4,6 +4,15 @@ so the main loop can call `get_frame()` without blocking.
 
 Phase 4 scope: raw BGR frames delivered via a thread-safe queue.
 Phase 5 pipelines consume frames from that queue.
+
+Startup optimisation (Fix A):
+  - The last working device index is persisted in a process-level variable
+    (_PREFERRED_DEVICE_IDX) so that subsequent CameraCapture instances
+    (e.g. after stop/start) skip the full 0-3 scan and go straight to the
+    known-good index.  0-3 fallback still runs if that index fails.
+  - Validation uses a single frame probe (not 5) to minimise open latency.
+  - On first run the scan prefers the configured device_id; on re-scan after
+    a disconnect the preferred index is tried first before falling back.
 """
 from __future__ import annotations
 
@@ -13,6 +22,11 @@ import time
 from typing import Optional
 
 import numpy as np
+
+# Process-level cache of the last working camera index.
+# Written by _capture_loop on first successful open; reset to None when a
+# device dies so the next iteration tries all indices fresh.
+_PREFERRED_DEVICE_IDX: Optional[int] = None
 
 
 class CameraCapture:
@@ -29,7 +43,7 @@ class CameraCapture:
 
     def __init__(self, device_id: int = 0, fps: int = 15, queue_size: int = 4) -> None:
         from loguru import logger
-        logger.info("UNMISTAKABLE LOG: CameraCapture constructed with device_id={}, fps={}", device_id, fps)
+        logger.info("CameraCapture constructed: device_id={}, fps={}", device_id, fps)
         self.device_id = device_id
         self.fps = fps
         self._queue: queue.Queue[Optional[np.ndarray]] = queue.Queue(maxsize=queue_size)
@@ -40,7 +54,7 @@ class CameraCapture:
     # ------------------------------------------------------------------
     def start(self) -> "CameraCapture":
         from loguru import logger
-        logger.info("UNMISTAKABLE LOG: CameraCapture.start() called! Starting daemon thread.")
+        logger.info("CameraCapture.start() — spawning capture thread")
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._capture_loop, daemon=True)
         self._thread.start()
@@ -66,102 +80,141 @@ class CameraCapture:
         return self._thread is not None and self._thread.is_alive()
 
     # ------------------------------------------------------------------
+    @staticmethod
+    def _try_open_device(dev_idx: int):
+        """
+        Open a device and validate it with a single frame read.
+        Returns (cap, frame) on success, (None, None) on failure.
+        The returned cap is already open; caller owns it.
+        """
+        try:
+            import cv2  # type: ignore
+        except ImportError:
+            return None, None
+
+        cap = cv2.VideoCapture(dev_idx)
+        if not cap.isOpened():
+            cap.release()
+            return None, None
+
+        ret, frame = cap.read()
+        if ret and frame is not None and frame.size > 0:
+            return cap, frame
+
+        cap.release()
+        return None, None
+
     def _capture_loop(self) -> None:
+        global _PREFERRED_DEVICE_IDX
         from loguru import logger
-        logger.info("UNMISTAKABLE LOG: CameraCapture _capture_loop() entry!")
-        logger.info("CameraCapture thread started.")
+        logger.info("CameraCapture: _capture_loop started")
+
         try:
             import cv2  # type: ignore
         except ImportError as exc:
-            logger.error("CameraCapture failed: cv2 not installed ({})", exc)
+            logger.error("CameraCapture: cv2 not installed ({})", exc)
             return
 
         interval = 1.0 / self.fps
-        
-        while not self._stop_event.is_set():
-            logger.info("CameraCapture scanning for video devices...")
-            self._cap = None
-            # Prioritize configured device_id, then fall back to indices 0-3
-            devices_to_try = [self.device_id] + [i for i in range(4) if i != self.device_id]
-            # Remove duplicates while preserving order
-            devices_to_try = list(dict.fromkeys(devices_to_try))
+        _MAX_READ_FAILURES = 10
 
-            for dev_idx in devices_to_try:
-                logger.info("CameraCapture: testing device index {}...", dev_idx)
-                cap = cv2.VideoCapture(dev_idx)
-                
-                if not cap.isOpened():
-                    logger.info("CameraCapture: device {} isOpened() returned False, skipping.", dev_idx)
-                    cap.release()
+        while not self._stop_event.is_set():
+            self._cap = None
+            t_scan_start = time.monotonic()
+
+            # ── Build probe order ─────────────────────────────────────
+            # 1. Process-level preferred index (last known-good, fastest path)
+            # 2. Configured device_id (constructor argument)
+            # 3. Remaining indices 0-3 as fallback
+            seen: list[int] = []
+            preferred = _PREFERRED_DEVICE_IDX
+            if preferred is not None:
+                seen.append(preferred)
+            if self.device_id not in seen:
+                seen.append(self.device_id)
+            for i in range(4):
+                if i not in seen:
+                    seen.append(i)
+            # ─────────────────────────────────────────────────────────
+
+            logger.info(
+                "CameraCapture: scan order={} (preferred={})",
+                seen, preferred,
+            )
+
+            probe_frame = None
+            for dev_idx in seen:
+                if self._stop_event.is_set():
+                    break
+                logger.info("CameraCapture: probing device {}...", dev_idx)
+                cap, frame = self._try_open_device(dev_idx)
+                if cap is None:
+                    logger.info("CameraCapture: device {} unusable, skipping", dev_idx)
                     continue
 
-                # Read a few frames to ensure the device is truly active and not a dummy
-                valid_device = False
-                frame_shape = None
-                for frame_idx in range(5):
-                    ret, frame = cap.read()
-                    if ret and frame is not None and frame.size > 0:
-                        valid_device = True
-                        frame_shape = frame.shape
-                    else:
-                        is_valid = frame is not None and frame.size > 0
-                        logger.warning(
-                            "CameraCapture: device {} read() failed on test frame {} (ret={}, valid_frame={})",
-                            dev_idx, frame_idx, ret, is_valid
-                        )
-                        valid_device = False
-                        break
-                    time.sleep(0.05)
-                    
-                if valid_device:
-                    self._cap = cap
-                    self.device_id = dev_idx
-                    if dev_idx == 1:
-                        logger.info("CameraCapture: CLEAR LOG - successfully selected device 1! Real frames are flowing. frame shape={}", frame_shape)
-                    else:
-                        logger.info(
-                            "CameraCapture: successfully selected device {}, frame shape={}",
-                            dev_idx, frame_shape,
-                        )
-                    self._queue.put_nowait(frame)
-                    break
-                else:
-                    logger.warning("CameraCapture: device {} failed frame validation, skipping virtual/non-reading device.", dev_idx)
-                    cap.release()
+                self._cap = cap
+                self.device_id = dev_idx
+                _PREFERRED_DEVICE_IDX = dev_idx
+                probe_frame = frame
+                t_scan = time.monotonic() - t_scan_start
+                logger.info(
+                    "CameraCapture: device {} selected in {:.3f}s (shape={})",
+                    dev_idx, t_scan, frame.shape,
+                )
+                break
 
             if self._cap is None:
-                logger.error("CameraCapture failed: no usable video device found (tried {})", devices_to_try)
+                logger.error(
+                    "CameraCapture: no usable device found (tried {}), retrying in 2s",
+                    seen,
+                )
                 time.sleep(2.0)
                 continue
 
+            # Enqueue the probe frame immediately so the first tick isn't starved
+            if probe_frame is not None:
+                try:
+                    self._queue.put_nowait(probe_frame)
+                except queue.Full:
+                    pass
+
+            # ── Steady-state read loop ────────────────────────────────
             frame_count = 0
+            consecutive_failures = 0
             while not self._stop_event.is_set():
                 t0 = time.monotonic()
                 ret, frame = self._cap.read()
+
                 if ret and frame is not None and frame.size > 0:
-                    # Drop oldest if consumer is slow
+                    consecutive_failures = 0
                     if self._queue.full():
                         try:
                             self._queue.get_nowait()
                         except queue.Empty:
                             pass
                     self._queue.put_nowait(frame)
-
                     frame_count += 1
-                    if frame_count % 150 == 0:  # every ~10 s at 15 fps
+                    if frame_count % 150 == 0:
                         logger.info(
-                            "CameraCapture: device={} frames_captured={} shape={}",
+                            "CameraCapture: device={} frames={} shape={}",
                             self.device_id, frame_count, frame.shape,
                         )
                 else:
-                    logger.warning("CameraCapture: cap.read() returned False on device {}", self.device_id)
+                    consecutive_failures += 1
+                    if consecutive_failures < _MAX_READ_FAILURES:
+                        elapsed = time.monotonic() - t0
+                        time.sleep(max(0.0, interval - elapsed))
+                        continue
+                    logger.warning(
+                        "CameraCapture: device {} — {} consecutive failures, re-scanning",
+                        self.device_id, consecutive_failures,
+                    )
                     if self._cap:
                         self._cap.release()
                     self._cap = None
-                    # Move to the next device to stop retrying the failed one
-                    self.device_id = (self.device_id + 1) % 4
+                    # Invalidate preferred cache so next scan tries all indices
+                    _PREFERRED_DEVICE_IDX = None
                     break
-                    
+
                 elapsed = time.monotonic() - t0
-                sleep = max(0.0, interval - elapsed)
-                time.sleep(sleep)
+                time.sleep(max(0.0, interval - elapsed))

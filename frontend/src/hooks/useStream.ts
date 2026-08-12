@@ -25,6 +25,9 @@ export function useStream(sessionId: string | null) {
   const [status, setStatus] = useState<ConnectionStatus>('closed')
   const [latest, setLatest] = useState<WsMessage | null>(null)
   const [history, setHistory] = useState<WsMessage[]>([])
+  // Live camera preview: base64 JPEG data URL sent by the backend every ~3 ticks.
+  // Kept separate from history so frame messages don't fill the 120-slot buffer.
+  const [latestFrame, setLatestFrame] = useState<string | null>(null)
 
   const wsRef        = useRef<WebSocket | null>(null)
   const timerRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -98,9 +101,15 @@ export function useStream(sessionId: string | null) {
       if (!active) return
       try {
         const msg = JSON.parse(evt.data) as WsMessage
-        // Skip ping frames entirely — they carry no prediction data and
-        // would trigger unnecessary Dashboard re-renders every 25 seconds.
+        // Skip ping frames — no prediction data, no re-render needed.
         if (msg.type === 'ping') return
+        // Camera preview frames: update the live preview image, do NOT
+        // add to history (would fill the 120-slot buffer at 5 fps).
+        if (msg.type === 'frame') {
+          const data = (msg.payload as { data?: string } | null)?.data
+          if (data) setLatestFrame(`data:image/jpeg;base64,${data}`)
+          return
+        }
         setLatest(msg)
         setHistory((prev) => [...prev.slice(-(MAX_HISTORY - 1)), msg])
       } catch {
@@ -138,6 +147,7 @@ export function useStream(sessionId: string | null) {
     teardown()
     setHistory([])
     setLatest(null)
+    setLatestFrame(null)
 
     if (sessionId) connect()
     else setStatus('closed')
@@ -145,5 +155,5 @@ export function useStream(sessionId: string | null) {
 
   const disconnect = useCallback(() => { teardown() }, [teardown])
 
-  return { status, latest, history, disconnect }
+  return { status, latest, history, latestFrame, disconnect }
 }

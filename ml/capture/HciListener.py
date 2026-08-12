@@ -51,27 +51,48 @@ class HCIListener:
         self._mouse_listener = None
         self._key_listener = None
         self._last_mouse_pos: Optional[Tuple[int, int]] = None
+        # True only when both OS listeners are confirmed running.
+        # Callers can check this to log a degraded-mode warning.
+        self.started: bool = False
 
     # ------------------------------------------------------------------
     def start(self) -> "HCIListener":
         import logging
+        _log = logging.getLogger(__name__)
         try:
             from pynput import mouse, keyboard  # type: ignore
         except ImportError as exc:
-            logging.getLogger(__name__).error(f"HCIListener failed: pynput not installed ({exc})")
+            _log.warning(
+                "HCIListener: pynput not installed — HCI features will be zero. "
+                "Install with: uv add pynput  (error: %s)",
+                exc,
+            )
             return self
 
-        self._mouse_listener = mouse.Listener(
-            on_move=self._on_move,
-            on_click=self._on_click,
-            on_scroll=self._on_scroll,
-        )
-        self._key_listener = keyboard.Listener(
-            on_press=self._on_key_press,
-            on_release=self._on_key_release,
-        )
-        self._mouse_listener.start()
-        self._key_listener.start()
+        try:
+            self._mouse_listener = mouse.Listener(
+                on_move=self._on_move,
+                on_click=self._on_click,
+                on_scroll=self._on_scroll,
+            )
+            self._key_listener = keyboard.Listener(
+                on_press=self._on_key_press,
+                on_release=self._on_key_release,
+            )
+            self._mouse_listener.start()
+            self._key_listener.start()
+            self.started = True
+            _log.info("HCIListener: mouse + keyboard listeners started OK")
+        except Exception as exc:
+            # pynput raises on headless / no-display environments
+            # (Docker without X11, Windows service without a desktop session).
+            self._mouse_listener = None
+            self._key_listener = None
+            _log.warning(
+                "HCIListener: listeners failed to start — HCI features will be zero. "
+                "Expected in headless/server environments. (error: %s)",
+                exc,
+            )
         return self
 
     def stop(self) -> None:

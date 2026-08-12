@@ -36,6 +36,13 @@ from ml.xai.ShapExplainer import SHAPExplainer
 from ml.xai.NlExplainer import generate_explanation
 from app.core.RedisStreamBus import publish as _bus_publish
 
+# Prediction persistence: write one DB row per second (every _PERSIST_EVERY ticks).
+# At 15 fps this means ~1 write/s — sufficient for analytics without thrashing Postgres.
+_PERSIST_EVERY = 15  # ticks between Prediction DB inserts
+
+# (Preview constants removed — frame publishing disabled; the frontend
+#  renders a privacy-safe animated face-mesh driven by prediction payloads.)
+
 from loguru import logger
 
 _TICK_HZ = 15  # pipeline invocation rate
@@ -102,10 +109,25 @@ class SessionRunner:
         self._voice = VoicePipeline()
         self._hci_pipe = HCIPipeline()
 
-        # Writer + predictor + XAI
-        self._writer    = DataWriter()
-        self._predictor = BehaviourPredictor()
-        self._explainer = SHAPExplainer(self._predictor._model)
+        # Writer
+        self._writer = DataWriter()
+
+        # Fix A: reuse the singleton predictor/explainer pre-loaded at startup
+        # (Main.py lifespan). Falls back to constructing a new one if the
+        # singleton was not initialised (e.g. test environments).
+        try:
+            import ml._singleton as _s
+            if _s.predictor is not None:
+                self._predictor = _s.predictor
+                self._explainer = _s.explainer
+                logger.info("SessionRunner: reusing pre-loaded ML singleton for session={}", session_id)
+            else:
+                raise AttributeError("singleton not ready")
+        except Exception:
+            logger.warning("SessionRunner: ML singleton unavailable — constructing BehaviourPredictor locally")
+            self._predictor = BehaviourPredictor()
+            self._explainer = SHAPExplainer(self._predictor._model)
+
         self.latest_prediction: Optional[PredictionResult] = None
         self.latest_shap: dict = {}
         self.latest_explanation: str = ""
@@ -252,7 +274,34 @@ class SessionRunner:
             },
         })
 
-        # Persist
+        # Camera preview frames are no longer sent — the frontend renders a
+        # privacy-safe animated face-mesh visualisation driven by the live
+        # prediction payload above.  JPEG encode + Redis publish removed.
+
+        # Persist Prediction row (once per second — every _PERSIST_EVERY ticks).
+        # Deferred imports keep this module importable in ML-only test envs.
+        if self._tick_n % _PERSIST_EVERY == 0:
+            try:
+                from app.db.Session import get_session_factory
+                from app.services.PredictionService import create_prediction
+                from app.schemas.Prediction import PredictionCreate
+                _pdata = PredictionCreate(
+                    session_id=self.session_id,
+                    emotion_label=prediction.emotion,
+                    emotion_scores=prediction.emotion_scores,
+                    stress=prediction.stress,
+                    engagement=prediction.engagement,
+                    attention=prediction.attention,
+                    fatigue=prediction.fatigue,
+                    shap_weights=self.latest_shap,
+                    explanation_text=self.latest_explanation,
+                )
+                async with get_session_factory()() as _db:
+                    await create_prediction(_db, _pdata)
+            except Exception as _exc:
+                logger.warning("SessionRunner: Prediction persist failed (non-fatal): {}", _exc)
+
+        # Persist modality features
         for modality, feats in [
             ("face",  face_feats),
             ("gaze",  gaze_feats),

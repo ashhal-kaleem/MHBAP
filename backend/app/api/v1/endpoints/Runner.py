@@ -60,12 +60,9 @@ class RunnerStatus(BaseModel):
 async def _run_session(session_id: str) -> None:
     """Entry-point for the background task.  Wraps SessionRunner lifecycle."""
     from uuid import UUID as _UUID
-    
-    def _import_session_runner():
-        from ml.SessionRunner import SessionRunner
-        return SessionRunner
-
-    SessionRunner = await asyncio.to_thread(_import_session_runner)
+    # SessionRunner was pre-imported at startup (Main.py lifespan).
+    # This import is now a no-op cache hit — not a cold load.
+    from ml.SessionRunner import SessionRunner
 
     sid = _UUID(session_id)
     logger.info("SessionRunner starting for session=%s", session_id)

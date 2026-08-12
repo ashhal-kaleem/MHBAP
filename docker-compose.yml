@@ -9,7 +9,7 @@ services:
 
   # ── PostgreSQL ────────────────────────────────────────────────────────────
   postgres:
-    image: timescale/timescaledb:2.15.3-pg16
+    image: timescale/timescaledb:latest-pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: mhbap
@@ -30,6 +30,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    ports:
+      - "6379:6379"
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]

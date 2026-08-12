@@ -1,23 +1,12 @@
 /**
  * SessionPanel — session lifecycle control + history list.
- *
- * Features:
- *  - Start / End session
- *  - Per-session: delete, rename context, CSV export
- *  - Inline stats card for completed sessions
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
-import { Download, Edit2, History, Play, Square, Trash2, X } from 'lucide-react'
+import { Download, Edit2, History, Play, Square, Trash2, X, Clock, AlertCircle } from 'lucide-react'
 import {
-  createSession,
-  deleteSession,
-  endSession,
-  exportSessionCsv,
-  listUserSessions,
-  updateSessionContext,
-  startRunner,
-  stopRunner,
+  createSession, deleteSession, endSession, exportSessionCsv,
+  listUserSessions, updateSessionContext, startRunner, stopRunner,
 } from '@/services/api'
 import { useSessionStats } from '@/hooks/useSessionStats'
 import { SessionStatsCard } from './SessionStatsCard'
@@ -34,28 +23,31 @@ function formatDateTime(iso: string): string {
     return new Date(iso).toLocaleString('en-US', {
       month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
     })
-  } catch {
-    return iso
-  }
+  } catch { return iso }
 }
 
-const STATUS_STYLE: Record<Session['status'], string> = {
-  active:    'bg-green-500/15 text-green-400',
-  completed: 'bg-gray-500/15 text-gray-400',
-  error:     'bg-red-500/15 text-red-400',
+function formatDuration(start: string, end: string | null): string {
+  if (!end) return ''
+  const secs = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000)
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return m > 0 ? `${m}m ${s}s` : `${s}s`
+}
+
+const STATUS_PILL: Record<Session['status'], string> = {
+  active:    'bg-green-100 text-green-700 border-green-200',
+  completed: 'bg-gray-100 text-gray-500 border-gray-200',
+  error:     'bg-red-100 text-red-600 border-red-200',
 }
 
 export function SessionPanel({ user, activeSession, onSelectSession }: SessionPanelProps) {
   const [sessions, setSessions] = useState<Session[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // Context editing state
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const editInputRef = useRef<HTMLInputElement>(null)
 
-  // Stats for active/selected completed session
   const completedId = activeSession?.status === 'completed' ? activeSession.id : null
   const { stats, loading: statsLoading, refetch: refetchStats } = useSessionStats(completedId)
 
@@ -70,11 +62,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
   }, [user])
 
   useEffect(() => { refresh() }, [refresh])
-
-  // Focus the rename input when it opens
-  useEffect(() => {
-    if (editingId) editInputRef.current?.focus()
-  }, [editingId])
+  useEffect(() => { if (editingId) editInputRef.current?.focus() }, [editingId])
 
   const handleStart = async () => {
     if (!user || busy) return
@@ -93,11 +81,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
     if (!activeSession || busy) return
     setBusy(true); setError(null)
     try {
-      try {
-        await stopRunner(activeSession.id)
-      } catch (runnerErr) {
-        console.error('Failed to stop runner:', runnerErr)
-      }
+      try { await stopRunner(activeSession.id) } catch (e) { console.error('Runner stop:', e) }
       const ended = await endSession(activeSession.id)
       setSessions((prev) => prev.map((s) => (s.id === ended.id ? ended : s)))
       onSelectSession(ended)
@@ -108,7 +92,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
   }
 
   const handleDelete = async (s: Session) => {
-    if (!window.confirm(`Delete session from ${formatDateTime(s.started_at)}? This also removes all predictions.`)) return
+    if (!window.confirm(`Delete session from ${formatDateTime(s.started_at)}? This removes all predictions.`)) return
     setBusy(true); setError(null)
     try {
       await deleteSession(s.id)
@@ -119,11 +103,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
     } finally { setBusy(false) }
   }
 
-  const startEditing = (s: Session) => {
-    setEditingId(s.id)
-    setEditValue(s.context)
-  }
-
+  const startEditing = (s: Session) => { setEditingId(s.id); setEditValue(s.context) }
   const cancelEditing = () => setEditingId(null)
 
   const commitContext = async (sessionId: string) => {
@@ -141,64 +121,85 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
 
   const handleExport = async (sessionId: string) => {
     setBusy(true); setError(null)
-    try {
-      await exportSessionCsv(sessionId)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Export failed')
-    } finally { setBusy(false) }
+    try { await exportSessionCsv(sessionId) }
+    catch (err) { setError(err instanceof Error ? err.message : 'Export failed') }
+    finally { setBusy(false) }
   }
 
   const isLive = activeSession?.status === 'active'
 
   return (
-    <div className="rounded-2xl bg-white/80 backdrop-blur-sm border border-gray-100 shadow-sm p-6">
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-900">Session</p>
+    <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-semibold text-gray-900">Session Control</p>
         <div className="flex items-center gap-2">
+          {isLive && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-2.5 py-1 text-xs font-semibold text-green-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              Analysis active
+            </span>
+          )}
           {!isLive ? (
             <button
               onClick={handleStart}
               disabled={!user || busy}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-plum px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-plum-dark disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
             >
-              <Play className="h-3.5 w-3.5" /> Start Analysis
+              {busy ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
+              Start Analysis
             </button>
           ) : (
-            <>
-              <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-400">
-                🎥 Analysis active
-              </span>
-              <button
-                onClick={handleEnd}
-                disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Square className="h-3.5 w-3.5" /> Stop Analysis
-              </button>
-            </>
+            <button
+              onClick={handleEnd}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
+            >
+              {busy ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Square className="h-3.5 w-3.5" />
+              )}
+              Stop Analysis
+            </button>
           )}
-
         </div>
       </div>
 
-      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      {/* Error */}
+      {error && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-xs text-red-600">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          {error}
+        </div>
+      )}
 
-      {/* History list */}
-      <div className="mt-4">
-        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-gray-500">
-          <History className="h-3.5 w-3.5" /> History
+      {/* History */}
+      <div>
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+          <History className="h-3 w-3" /> History
         </p>
-        {!user && <p className="text-xs text-gray-500">Loading user…</p>}
-        {user && sessions.length === 0 && (
-          <div className="text-sm text-gray-500 italic p-6 text-center border border-dashed border-gray-200 rounded-xl bg-gray-50/50 mt-2">No sessions yet — start one above.</div>
+
+        {!user && (
+          <p className="text-xs text-gray-400 py-2">Authenticating…</p>
         )}
-        <ul className="max-h-52 space-y-1 overflow-y-auto pr-1">
+
+        {user && sessions.length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 py-8 text-center">
+            <Clock className="h-6 w-6 text-gray-300" />
+            <p className="text-xs text-gray-400">No sessions yet — start one above.</p>
+          </div>
+        )}
+
+        <ul className="max-h-64 space-y-0.5 overflow-y-auto pr-0.5 mt-1">
           {sessions.map((s) => (
             <li key={s.id}>
               {editingId === s.id ? (
-                /* Inline rename editor */
-                <div className="flex items-center gap-1 rounded-lg bg-white border border-gray-200 px-2 py-1 shadow-sm">
+                <div className="flex items-center gap-1.5 rounded-lg bg-white border border-plum/30 px-3 py-2 shadow-sm">
                   <input
                     ref={editInputRef}
                     value={editValue}
@@ -207,42 +208,55 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
                       if (e.key === 'Enter') commitContext(s.id)
                       if (e.key === 'Escape') cancelEditing()
                     }}
-                    className="min-w-0 flex-1 bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-400"
+                    className="min-w-0 flex-1 bg-transparent text-xs text-gray-900 outline-none placeholder:text-gray-300"
                     placeholder="Context label…"
                     maxLength={120}
                   />
-                  <button onClick={() => commitContext(s.id)} className="text-green-500 hover:text-green-600 text-xs px-1">✓</button>
-                  <button onClick={cancelEditing} className="text-gray-400 hover:text-gray-600"><X className="h-3 w-3" /></button>
+                  <button onClick={() => commitContext(s.id)} className="text-green-500 hover:text-green-600 text-xs font-bold px-1">✓</button>
+                  <button onClick={cancelEditing} className="text-gray-300 hover:text-gray-500"><X className="h-3.5 w-3.5" /></button>
                 </div>
               ) : (
-                /* Normal row */
                 <div
                   className={clsx(
-                    'group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition',
-                    activeSession?.id === s.id ? 'bg-blue-50/80 border border-blue-100 shadow-sm' : 'hover:bg-gray-50/80 border border-transparent',
+                    'group flex w-full items-center gap-2 rounded-lg px-2.5 py-2 transition-all cursor-pointer',
+                    activeSession?.id === s.id
+                      ? 'bg-plum/5 border border-plum/20 shadow-sm'
+                      : 'border border-transparent hover:bg-gray-50',
                   )}
+                  onClick={() => onSelectSession(s)}
                 >
-                  <button
-                    onClick={() => onSelectSession(s)}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                  >
-                    <span className={clsx('text-xs', activeSession?.id === s.id ? 'text-blue-900 font-medium' : 'text-gray-500')}>
-                      <span className="font-mono">{formatDateTime(s.started_at)}</span>
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="min-w-0">
+                      <p className={clsx(
+                        'text-xs truncate',
+                        activeSession?.id === s.id ? 'font-semibold text-plum' : 'text-gray-700',
+                      )}>
+                        {formatDateTime(s.started_at)}
+                      </p>
                       {s.context && s.context !== 'unspecified' && s.context !== 'live' && (
-                        <span className="ml-1.5 text-gray-400">· {s.context}</span>
+                        <p className="text-[11px] text-gray-400 truncate">{s.context}</p>
                       )}
+                      {s.ended_at && (
+                        <p className="text-[11px] text-gray-300">{formatDuration(s.started_at, s.ended_at)}</p>
+                      )}
+                    </div>
+                    <span className={clsx('ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize', STATUS_PILL[s.status])}>
+                      {s.status}
                     </span>
-                    <span className={clsx('ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium', STATUS_STYLE[s.status])}>
-                      {s.status === 'active' ? '🎥 active' : s.status}
-                    </span>
-                  </button>
+                  </div>
 
-                  {/* Action buttons — visible on hover or when row is active */}
-                  <div className={clsx('flex shrink-0 items-center gap-0.5', activeSession?.id === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}>
+                  {/* Actions */}
+                  <div
+                    className={clsx(
+                      'flex shrink-0 items-center gap-0.5 transition-opacity',
+                      activeSession?.id === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <button
                       title="Rename context"
                       onClick={() => startEditing(s)}
-                      className="rounded p-1 text-gray-400 hover:bg-white hover:text-gray-900 hover:shadow-sm border border-transparent hover:border-gray-200"
+                      className="rounded p-1.5 text-gray-300 hover:bg-white hover:text-gray-700 hover:shadow-sm border border-transparent hover:border-gray-200 transition-all"
                     >
                       <Edit2 className="h-3 w-3" />
                     </button>
@@ -251,7 +265,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
                         title="Export CSV"
                         onClick={() => handleExport(s.id)}
                         disabled={busy}
-                        className="rounded p-1 text-gray-400 hover:bg-white hover:text-gray-900 hover:shadow-sm border border-transparent hover:border-gray-200 disabled:opacity-40"
+                        className="rounded p-1.5 text-gray-300 hover:bg-white hover:text-gray-700 hover:shadow-sm border border-transparent hover:border-gray-200 transition-all disabled:opacity-30"
                       >
                         <Download className="h-3 w-3" />
                       </button>
@@ -260,7 +274,7 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
                       title="Delete session"
                       onClick={() => handleDelete(s)}
                       disabled={busy}
-                      className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-100 border border-transparent disabled:opacity-40"
+                      className="rounded p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 hover:border-red-100 border border-transparent transition-all disabled:opacity-30"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -273,10 +287,13 @@ export function SessionPanel({ user, activeSession, onSelectSession }: SessionPa
       </div>
 
       {/* Stats card for completed sessions */}
-      {stats && <SessionStatsCard stats={stats} loading={statsLoading} />}
-      {completedId && !stats && statsLoading && (
-        <p className="mt-3 text-xs text-gray-500">Loading stats…</p>
+      {completedId && statsLoading && !stats && (
+        <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
+          <div className="w-3.5 h-3.5 border-2 border-plum/30 border-t-plum rounded-full animate-spin" />
+          Loading stats…
+        </div>
       )}
+      {stats && <SessionStatsCard stats={stats} loading={statsLoading} />}
     </div>
   )
 }

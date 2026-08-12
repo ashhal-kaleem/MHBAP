@@ -38,7 +38,34 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     get_redis()
 
-    # Phase 5: pre-load ML model weights here
+    # Fix A+C: pre-import SessionRunner module AND construct the shared
+    # BehaviourPredictor+SHAPExplainer singleton off the event loop.
+    # This moves the ~9s import + ~4.75s weight-load cost to server startup
+    # so every subsequent "Start Analysis" click pays ~0s instead.
+    import asyncio as _asyncio
+
+    def _preload_ml() -> None:
+        try:
+            from ml.SessionRunner import SessionRunner  # noqa: F401 — caches module
+            from ml.fusion.Predictor import BehaviourPredictor
+            from ml.xai.ShapExplainer import SHAPExplainer
+            import ml._singleton as _s  # noqa: F401 — created below
+            if _s.predictor is None:
+                _s.predictor = BehaviourPredictor()
+                _s.explainer = SHAPExplainer(_s.predictor._model)
+                logger.info("ML singleton ready (BehaviourPredictor + SHAPExplainer)")
+        except Exception as _exc:
+            logger.warning("ML pre-load skipped (non-fatal): {}", _exc)
+
+    # Create the singleton module first so the thread can import it.
+    import types as _types, sys as _sys
+    if "ml._singleton" not in _sys.modules:
+        _mod = _types.ModuleType("ml._singleton")
+        _mod.predictor = None  # type: ignore[attr-defined]
+        _mod.explainer = None  # type: ignore[attr-defined]
+        _sys.modules["ml._singleton"] = _mod
+
+    await _asyncio.to_thread(_preload_ml)
 
     yield
 
