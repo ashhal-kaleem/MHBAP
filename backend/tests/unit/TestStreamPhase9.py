@@ -148,19 +148,23 @@ class TestConnectionCap:
             time.sleep(0.1)
             publish(sid, {"type": "session_end", "payload": None})
 
-        with client.websocket_connect(f"/api/v1/stream/session/{sid}") as ws:
-            ws.receive_json()   # session_start
-            during = _client_counts.get(sid, 0)
-            assert during == before + 1
-            threading.Thread(target=_end, daemon=True).start()
-            # drain until session_end or close
-            for _ in range(5):
-                try:
-                    msg = ws.receive_json()
-                    if msg.get("type") == "session_end":
+        with patch(
+            "app.api.v1.endpoints.Stream._probe_redis",
+            new=AsyncMock(return_value=False),
+        ):
+            with client.websocket_connect(f"/api/v1/stream/session/{sid}") as ws:
+                ws.receive_json()   # session_start
+                during = _client_counts.get(sid, 0)
+                assert during == before + 1
+                threading.Thread(target=_end, daemon=True).start()
+                # drain until session_end or close
+                for _ in range(5):
+                    try:
+                        msg = ws.receive_json()
+                        if msg.get("type") == "session_end":
+                            break
+                    except Exception:
                         break
-                except Exception:
-                    break
         after = _client_counts.get(sid, 0)
         assert after == before
 
@@ -173,20 +177,25 @@ class TestRedisStreamBusFallback:
         import app.core.RedisStreamBus as bus_mod
         import app.core.StreamBus as inproc
 
-        received = []
-
-        # Patch _redis_available to False to skip Redis path
-        original = bus_mod._redis_available
-        bus_mod._redis_available = False
-
         sid = "fallback-test-session"
-        q = inproc.subscribe(sid)
-        try:
-            asyncio.run(
-                bus_mod.publish(sid, {"type": "prediction", "payload": {"stress": 0.7}})
-            )
-            msg = q.get_nowait()
-            assert msg["payload"]["stress"] == pytest.approx(0.7)
-        finally:
-            inproc.unsubscribe(sid, q)
-            bus_mod._redis_available = original
+
+        async def _run():
+            # Create queue and publish inside the same event loop so
+            # asyncio.Queue is bound to the correct loop (Python 3.9 compat).
+            q = inproc.subscribe(sid)
+            try:
+                # Patch _probe_redis to return False so publish skips Redis
+                # regardless of _redis_available / _last_probe_time state.
+                with patch(
+                    "app.core.RedisStreamBus._probe_redis",
+                    new=AsyncMock(return_value=False),
+                ):
+                    await bus_mod.publish(
+                        sid, {"type": "prediction", "payload": {"stress": 0.7}}
+                    )
+                msg = q.get_nowait()
+                assert msg["payload"]["stress"] == pytest.approx(0.7)
+            finally:
+                inproc.unsubscribe(sid, q)
+
+        asyncio.run(_run())

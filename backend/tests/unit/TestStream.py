@@ -6,11 +6,33 @@ No DB, no Redis, no hardware required.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import pytest
 from fastapi.testclient import TestClient
 
 from app.Main import app
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _reset_engine_pool():
+    """
+    Dispose the SQLAlchemy asyncpg connection pool before this module runs.
+
+    When other test modules (e.g. TestRunnerEndpoints) spin up a TestClient
+    they open an asyncpg pool bound to *their* anyio event loop.  That loop
+    is closed at the end of those tests, leaving stale connections in the
+    module-level _engine singleton.  When TestStream.py's TestClient starts
+    a *new* event loop, the pool tries to re-use those dead connections and
+    crashes with 'NoneType' has no attribute 'send' (the closed proactor).
+
+    Disposing the pool here forces SQLAlchemy to drop all pooled connections
+    so the next TestClient's lifespan opens fresh ones on the current loop.
+    """
+    import app.db.Session as _db_session
+    if _db_session._engine is not None:
+        asyncio.get_event_loop().run_until_complete(_db_session.dispose_engine())
+    yield
 
 
 @pytest.fixture(scope="module")
