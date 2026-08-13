@@ -132,6 +132,11 @@ class SessionRunner:
         self.latest_shap: dict = {}
         self.latest_explanation: str = ""
 
+        # Cache last non-zero voice features so ticks where no new audio chunk
+        # is ready (mic produces a chunk every 250ms but _tick runs at 15fps)
+        # still contribute real voice data instead of all-zeros.
+        self._last_voice_feats: Optional[dict] = None
+
     # ------------------------------------------------------------------
     async def __aenter__(self) -> "SessionRunner":
         logger.info("SessionRunner.__aenter__: starting capture threads for session={}", self.session_id)
@@ -142,6 +147,15 @@ class SessionRunner:
                 logger.info("SessionRunner: capture '{}' started", name)
             except Exception as exc:
                 logger.warning("SessionRunner capture '{}' startup notice: {}", name, exc)
+
+        # Warn immediately if HCI listener failed — avoids silent all-zero HCI features.
+        if not self._hci.started:
+            logger.warning(
+                "SessionRunner: HCIListener did not start (pynput unavailable or permission denied). "
+                "HCI features will be zero for this session. "
+                "Fix: ensure pynput is installed (`uv add pynput`) and that the process has "
+                "accessibility/input-monitoring permissions."
+            )
         return self
 
     async def __aexit__(self, *_) -> None:
@@ -193,9 +207,26 @@ class SessionRunner:
         gaze_feats = self._gaze.process(frame)
         pose_feats = self._pose.process(frame)
 
-        # Voice (consume whatever chunk is ready)
+        # Voice — consume whatever chunk is ready.
+        # MicrophoneCapture produces one chunk every 250ms (CHUNK_MS) but _tick
+        # runs at 15fps (~67ms). On the ~3 ticks between chunks, get_chunk()
+        # returns None and VoicePipeline would return all-zeros, making voice
+        # contribute nothing to the predictor on those ticks.
+        # Fix: cache the last non-zero voice feature dict and reuse it until a
+        # fresh chunk arrives — voice state changes slowly relative to 250ms anyway.
         audio_chunk = self._mic.get_chunk()
-        voice_feats = self._voice.process(audio_chunk)
+        if audio_chunk is not None:
+            fresh_feats = self._voice.process(audio_chunk)
+            # Only update cache when the chunk produced real features (not silent noise)
+            if any(v != 0.0 for v in fresh_feats.values()):
+                self._last_voice_feats = fresh_feats
+            voice_feats = fresh_feats
+        elif self._last_voice_feats is not None:
+            # Reuse last valid voice features — no new audio chunk this tick
+            voice_feats = self._last_voice_feats
+        else:
+            # No chunk ever received yet (start of session)
+            voice_feats = self._voice.process(None)
 
         # HCI (drain event buffer)
         mouse_events, key_events = self._hci.drain()
@@ -237,17 +268,23 @@ class SessionRunner:
                 top_score,
             )
         if self._tick_n % 15 == 0:
-            face_nonzero = sum(1 for v in face_feats.values() if v != 0.0) if face_feats else 0
+            face_nonzero  = sum(1 for v in face_feats.values() if v != 0.0) if face_feats else 0
+            voice_nonzero = sum(1 for v in voice_feats.values() if v != 0.0) if voice_feats else 0
+            hci_nonzero   = sum(1 for v in hci_feats.values()  if v != 0.0) if hci_feats  else 0
+            voice_src     = "fresh" if audio_chunk is not None else ("cached" if self._last_voice_feats else "zero")
+            hci_src       = "live"  if self._hci.started else "DEGRADED(pynput failed)"
             shap_str = ", ".join(f"{k}={v:.3f}" for k, v in self.latest_shap.items()) if self.latest_shap else "(empty)"
             logger.info(
-                "PIPELINE tick={} | frame={} | crop={} | face_AU_nonzero={}/{} | "
+                "PIPELINE tick={} | frame={} | crop={} | face_AU={}/{} | "
+                "voice={}/{} [{}] | hci={}/{} [{}] | "
                 "emotion={}({:.3f}) src={} | stress={:.3f} eng={:.3f} att={:.3f} fat={:.3f} | "
                 "SHAP_stress=[{}]",
                 self._tick_n,
                 "real" if frame is not None else "NONE",
                 face_crop.shape if face_crop is not None else "NONE",
-                face_nonzero,
-                len(face_feats) if face_feats else 0,
+                face_nonzero,  len(face_feats)  if face_feats  else 0,
+                voice_nonzero, len(voice_feats) if voice_feats else 0, voice_src,
+                hci_nonzero,   len(hci_feats)   if hci_feats   else 0, hci_src,
                 prediction.emotion, top_score, prediction.emotion_source,
                 prediction.stress, prediction.engagement, prediction.attention, prediction.fatigue,
                 shap_str,
