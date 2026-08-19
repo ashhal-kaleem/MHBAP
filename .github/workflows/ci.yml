@@ -9,7 +9,7 @@ on:
 jobs:
   # ── Backend: unit tests + coverage ────────────────────────────────────────
   backend:
-    name: Backend (Python 3.11)
+    name: Backend (Python 3.9)
     runs-on: ubuntu-latest
     # No working-directory default — install and pytest both run from repo root
     # so that pyproject.toml is found and its paths (backend/, ml/) resolve.
@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.9"
           cache: pip
           # Point the pip cache key at pyproject.toml (no requirements.txt exists)
           cache-dependency-path: pyproject.toml
