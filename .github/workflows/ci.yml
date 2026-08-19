@@ -38,10 +38,12 @@ jobs:
           # Point the pip cache key at pyproject.toml (no requirements.txt exists)
           cache-dependency-path: pyproject.toml
 
+      - name: Install uv
+        run: pip install uv
+
       - name: Install deps
-        # Editable install picks up the project + [dev] extras (pytest, ruff, etc.)
-        # Running from repo root so setuptools finds pyproject.toml directly.
-        run: pip install -e ".[dev]"
+        # Install from the existing uv.lock
+        run: uv sync --extra dev
 
       - name: Ruff lint (advisory)
         # Path is now relative to repo root, not backend/
