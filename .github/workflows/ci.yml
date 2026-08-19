@@ -51,7 +51,7 @@ jobs:
 
       - name: Unit tests + coverage
         run: |
-          python -m pytest backend/tests/unit/ -v \
+          uv run python -m pytest backend/tests/unit/ -v \
             --tb=short \
             --cov=backend \
             --cov-report=term-missing \
