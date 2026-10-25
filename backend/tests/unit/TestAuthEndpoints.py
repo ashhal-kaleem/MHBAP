@@ -203,22 +203,27 @@ class TestMe:
 
 # ── migration sanity ──────────────────────────────────────────────────────────
 
+def _load_migration_0002():
+    import importlib.util
+    from pathlib import Path
+    import app.db.migrations.versions as versions_pkg
+    path = Path(versions_pkg.__file__).parent / "0002_add_auth_fields_to_users.py"
+    spec = importlib.util.spec_from_file_location("migration_0002", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 class TestMigration0002:
     def test_revision_attributes(self):
-        from app.db.migrations.versions import (
-            _0002_add_auth_fields_to_users as m,
-        )
+        m = _load_migration_0002()
         assert m.revision == "0002"
         assert m.down_revision == "0001"
 
     def test_upgrade_callable(self):
-        from app.db.migrations.versions import (
-            _0002_add_auth_fields_to_users as m,
-        )
+        m = _load_migration_0002()
         assert callable(m.upgrade)
 
     def test_downgrade_callable(self):
-        from app.db.migrations.versions import (
-            _0002_add_auth_fields_to_users as m,
-        )
+        m = _load_migration_0002()
         assert callable(m.downgrade)

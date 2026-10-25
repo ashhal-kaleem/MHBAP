@@ -32,7 +32,7 @@ from ml.pipelines.voice.Pipeline import VoicePipeline
 from ml.pipelines.hci.Pipeline import HCIPipeline
 from ml.DataWriter import DataWriter
 from ml.fusion.Predictor import BehaviourPredictor, PredictionResult
-from ml.xai.ShapExplainer import SHAPExplainer
+from ml.xai.IntegratedGradients import IntegratedGradientsExplainer
 from ml.xai.NlExplainer import generate_explanation
 from app.core.RedisStreamBus import publish as _bus_publish
 
@@ -126,7 +126,7 @@ class SessionRunner:
         except Exception:
             logger.warning("SessionRunner: ML singleton unavailable — constructing BehaviourPredictor locally")
             self._predictor = BehaviourPredictor()
-            self._explainer = SHAPExplainer(self._predictor._model)
+            self._explainer = IntegratedGradientsExplainer(self._predictor._model)
 
         self.latest_prediction: Optional[PredictionResult] = None
         self.latest_shap: dict = {}

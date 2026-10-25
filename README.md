@@ -159,9 +159,13 @@ logs a warning and skips inference for that frame (it does not fall back to rand
 
 | Method | Module | Fallback |
 |--------|--------|----------|
-| Integrated Gradients | `captum.attr.IntegratedGradients` | Gradient×Input |
-| GradCAM | `ml/xai/Gradcam.py` | — |
+| Integrated Gradients | `ml/xai/IntegratedGradients.py` (captum) | Gradient×Input |
+| Face-AU saliency (Grad-CAM-style rule on the face projection layer; **not** image Grad-CAM) | `ml/xai/Gradcam.py` (`FaceAUSaliency`) | — |
 | Feature importance | Per-modality attribution aggregation | Feature-magnitude heuristic |
+
+The old names `SHAPExplainer` and `GradCAM` still work as aliases, but they were
+misleading: the first never computed SHAP values, and the second has no image feature
+map. How faithful these attributions are is measured on DAiSEE (see Evaluation).
 
 Attributions for a session are available at
 `GET /api/v1/predictions/Session/{session_id}/xai` (requires authentication).
@@ -237,7 +241,7 @@ MHBAP/
 │   │   └── weights/            # enet_b0_8_best_afew.pt (download separately)
 │   ├── pipelines/              # face/, gaze/, pose/, voice/, hci/
 │   ├── training/               # Dataset.py (synthetic), RealDataset.py
-│   ├── xai/                    # ShapExplainer.py, Gradcam.py, NlExplainer.py
+│   ├── xai/                    # IntegratedGradients.py, Gradcam.py, Faithfulness.py, NlExplainer.py
 │   └── SessionRunner.py
 ├── scripts/                    # training, evaluation, download, diagnostic scripts
 ├── colab/                      # Colab training notebook + weight sync
@@ -270,14 +274,13 @@ docker compose up --build
 ### Manual development setup
 
 ```bash
-# Backend
-cd backend
+# Backend (run from the repo root, where pyproject.toml lives)
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[ml,dev]"         # or: uv sync --extra ml --extra dev
 
 docker compose up postgres redis -d
-uvicorn app.main:app --reload      # http://localhost:8000
+uvicorn app.Main:app --app-dir backend --reload   # http://localhost:8000
 
 # Frontend (separate terminal)
 cd frontend
@@ -375,6 +378,108 @@ the label logic and `ml/models/weights/tcmt_eval_metrics.json` for the raw numbe
 Emotion accuracy is 35.5 %; per-class F1 varies significantly
 (0.11–0.64 across the four classes).
 
+### Real temporal benchmark: DAiSEE
+
+The results above come from the original training setup, which has known limits:
+static images (T = 1), random-noise values for gaze/pose/voice/HCI on image samples,
+and proxy labels for engagement/attention/fatigue. To get numbers that measure real
+behaviour, MHBAP now includes a benchmark on **DAiSEE** (Gupta et al., 2016):
+9,068 ten-second webcam clips from 112 subjects, labelled 0 to 3 for boredom,
+engagement, confusion and frustration.
+
+- **Features:** the same MediaPipe face/gaze/pose pipelines used live, run on 32
+  uniformly sampled frames per clip (28 dims per frame). Frames with no detected face are masked.
+- **Model:** `ml/fusion/VideoTcmt.py`, a TCMT variant with a temporal position
+  embedding (the original TCMT has none, so it cannot tell frame order apart),
+  padding masks and learned missing-modality tokens.
+- **Protocol:** official subject-disjoint Train/Validation/Test splits; model selection
+  on validation only; class-weighted loss (DAiSEE is heavily imbalanced); 3 seeds,
+  reported as mean ± std, with both accuracy and macro-F1.
+- **Ablations:** majority-class baseline, temporal vs clip-mean (T = 1), and every modality subset.
+
+```bash
+python -m scripts.daisee.extract_features --root /path/to/DAiSEE --out data/daisee_features
+python -m scripts.daisee.train_eval --features data/daisee_features --out results/daisee
+```
+
+Or run `colab/DAiSEE_Benchmark_Colab.ipynb` on a T4.
+
+**Results** (official test split, n = 1,784 clips; mean ± std over 3 seeds; 4-level
+labels, so chance macro-F1 ≈ 0.25 and the majority baseline's macro-F1 ≈ 0.16–0.22).
+Raw numbers in `results/daisee/results.json`.
+
+| Setting | Boredom Acc / F1 | Engagement Acc / F1 | Confusion Acc / F1 | Frustration Acc / F1 |
+|---|---|---|---|---|
+| majority-class baseline | 46.1 / 0.158 | 49.4 / 0.165 | 67.3 / 0.201 | 77.8 / 0.219 |
+| full (face+gaze+pose, temporal) | 41.5±0.6 / 0.316±0.013 | 43.1±1.2 / 0.275±0.006 | 52.4±5.2 / 0.299±0.013 | 59.5±2.0 / 0.265±0.007 |
+| static (clip mean, T=1) | 40.1±0.7 / 0.312±0.004 | 45.5±1.4 / 0.284±0.014 | 47.6±1.1 / 0.287±0.013 | 58.6±6.0 / 0.259±0.002 |
+| face (temporal) | 36.1±0.5 / 0.294±0.004 | 44.7±4.1 / 0.284±0.024 | 49.5±0.6 / 0.274±0.001 | 50.2±1.2 / 0.240±0.005 |
+| gaze (temporal) | 28.9±3.0 / 0.240±0.012 | 41.9±4.2 / 0.266±0.031 | 45.4±11.2 / 0.250±0.025 | 54.3±7.5 / 0.247±0.011 |
+| pose (temporal) | 32.5±2.2 / 0.247±0.004 | 41.6±1.5 / 0.271±0.011 | 47.9±4.6 / 0.268±0.006 | 57.4±10.2 / 0.255±0.007 |
+| face+gaze (temporal) | 37.7±2.3 / 0.301±0.007 | 44.0±1.5 / 0.286±0.012 | 51.3±3.0 / 0.284±0.008 | 53.3±8.5 / 0.250±0.014 |
+| face+pose (temporal) | 37.7±2.1 / 0.308±0.007 | 41.7±3.5 / 0.277±0.021 | 50.6±5.0 / 0.282±0.006 | 56.6±4.9 / 0.260±0.010 |
+| gaze+pose (temporal) | 33.1±2.4 / 0.266±0.010 | 43.1±1.8 / 0.265±0.011 | 40.0±4.9 / 0.235±0.029 | 51.6±7.2 / 0.249±0.029 |
+
+How to read this honestly:
+
+- **Macro-F1 is the metric that matters here.** DAiSEE is very imbalanced, so always
+  predicting the most common level gets high accuracy (e.g. 77.8% on frustration) but
+  macro-F1 of only 0.16–0.22. The class-weighted models trade some accuracy for much
+  better macro-F1 on every state (0.27–0.32).
+- **Combining modalities helps.** The full face+gaze+pose model has the best or near-best
+  macro-F1 on boredom (0.316), confusion (0.299) and frustration (0.265). Face is the
+  strongest single modality; gaze alone is the weakest.
+- **Temporal modelling gives only a small gain.** Temporal beats the clip-mean (T = 1)
+  model on boredom, confusion and frustration, but the gaps are mostly within one std,
+  and static is slightly better on engagement (0.284 vs 0.275). With hand-crafted
+  landmark features at 32 frames per clip, most of the signal seems to be in the
+  clip-level averages. Learned per-frame visual features (e.g. EfficientNet) are the
+  obvious next step.
+- **Engagement is the hardest state.** No setting beats the majority baseline on
+  engagement accuracy, though all beat it on macro-F1. For comparison, the DAiSEE paper
+  reports 51.07% engagement accuracy for its frame-level baseline, so our accuracy-oriented
+  numbers are lower, while ours are trained for balanced performance across levels.
+
+Setup: CPU training, AdamW (lr 3e-4), up to 40 epochs with early stopping on validation
+mean macro-F1 (patience 8). DAiSEE is for research use only; cite Gupta et al. (2016)
+and Kamath et al. (2016). No DAiSEE video or images are stored in this repo.
+
+### Are the explanations faithful? (DAiSEE)
+
+`scripts/daisee/xai_eval.py` tests the attribution methods on the trained full model
+(seed 0) over 200 random test clips. Each method ranks every (frame, feature) input;
+we then delete (or insert) inputs in that order and track the probability of the
+predicted level (Petsiuk et al., 2018), and re-run each method on a fully
+re-initialised model (Adebayo et al., 2018). Raw numbers in
+`results/daisee/xai_faithfulness.json`.
+
+| State | Deletion AUC ↓ (IG / G×I / Grad / random) | Insertion AUC ↑ (IG / G×I / Grad / random) | Randomised-model Spearman ↓ (IG / G×I / Grad) | Spearman with \|x\| (IG / G×I / Grad) | IG share face / gaze / pose |
+|---|---|---|---|---|---|
+| Boredom | 0.344 / 0.361 / 0.385 / 0.394 | 0.429 / 0.416 / 0.381 / 0.392 | 0.607 / 0.587 / 0.098 | 0.756 / 0.727 / -0.049 | 0.53 / 0.14 / 0.33 |
+| Engagement | 0.380 / 0.392 / 0.418 / 0.422 | 0.445 / 0.434 / 0.401 / 0.419 | 0.648 / 0.608 / 0.156 | 0.759 / 0.715 / -0.077 | 0.51 / 0.15 / 0.34 |
+| Confusion | 0.354 / 0.366 / 0.389 / 0.389 | 0.406 / 0.393 / 0.371 / 0.388 | 0.620 / 0.609 / 0.103 | 0.754 / 0.740 / -0.053 | 0.59 / 0.11 / 0.31 |
+| Frustration | 0.443 / 0.450 / 0.458 / 0.453 | 0.449 / 0.443 / 0.430 / 0.450 | 0.625 / 0.608 / 0.065 | 0.793 / 0.751 / -0.026 | 0.53 / 0.11 / 0.36 |
+
+What this shows:
+
+- **IG is the most faithful of the three on deletion and insertion** for every state:
+  removing the inputs IG ranks highest drops the prediction faster than G×I, plain
+  gradients or a random order (e.g. boredom deletion AUC 0.344 vs 0.394 random). The
+  gap is small for frustration (0.443 vs 0.453).
+- **But IG and G×I only partly pass the randomisation sanity check.** Their maps on a
+  random model still have rank correlation about 0.6 with the trained model's, mainly
+  because both multiply by the input (correlation with |x| is about 0.75). So part of
+  what they show is "which inputs are large", not "what the model learned".
+- **Plain gradients pass the sanity check** (correlation 0.07 to 0.16) but do no better
+  than random on deletion. No single method wins on both tests, which matches findings
+  in the XAI literature.
+- **Modality shares agree with the ablation.** IG gives face about 51 to 59% of the
+  attribution, pose about 31 to 36%, gaze about 11 to 15%. In the ablation, face was
+  the strongest single modality and gaze the weakest.
+
+Takeaway for the live dashboard: per-modality IG shares are a reasonable summary, but
+they should be read with the input-magnitude caveat above.
+
 ---
 
 ## Privacy & Data Handling
@@ -400,3 +505,8 @@ Emotion accuracy is 35.5 %; per-class F1 varies significantly
 4. Zadeh et al. (2018). *Multi-attention Recurrent Network for Human Communication Comprehension.* AAAI 2018.
 5. Poria et al. (2017). *A review of affective computing: From unimodal analysis to multimodal fusion.* Information Fusion.
 6. Sundararajan et al. (2017). *Axiomatic Attribution for Deep Networks (Integrated Gradients).* ICML 2017.
+7. Gupta, A., D'Cunha, A., Awasthi, K., Balasubramanian, V. (2016). *DAiSEE: Towards User Engagement Recognition in the Wild.* arXiv:1609.01885.
+8. Kamath, A., Biswas, A., Balasubramanian, V. (2016). *A Crowdsourced Approach to Student Engagement Recognition in e-Learning Environments.* WACV 2016.
+9. Petsiuk, V., Das, A., Saenko, K. (2018). *RISE: Randomized Input Sampling for Explanation of Black-box Models.* BMVC 2018.
+10. Adebayo, J., Gilmer, J., Muelly, M., Goodfellow, I., Hardt, M., Kim, B. (2018). *Sanity Checks for Saliency Maps.* NeurIPS 2018.
+11. Simonyan, K., Vedaldi, A., Zisserman, A. (2014). *Deep Inside Convolutional Networks: Visualising Image Classification Models and Saliency Maps.* ICLR Workshop 2014.

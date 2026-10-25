@@ -1,6 +1,6 @@
 # MHBAP — Project Status
 
-Last updated: 2026-07-30
+Last updated: 2026-10-25
 
 ## Phase tracker
 
@@ -26,25 +26,22 @@ Last updated: 2026-07-30
 | F | Real evaluation: TCMT inference replaces simulation | ✅ Complete | 2026-07-30 | 2026-07-30 |
 | G | Real public datasets: download, retrain, real eval  | ✅ Complete | 2026-07-30 | 2026-07-30 |
 
-## Real Training Results (Phase G — held-out test set, n=1425)
-| Head        | Metric     | Value   |
-|-------------|------------|---------|
-| Emotion     | Accuracy   | 99.93%  |
-| Emotion     | Macro F1   | 99.86%  |
-| Emotion     | ROC-AUC    | N/A*    |
-| Stress      | RMSE       | 0.0464  |
-| Stress      | MAE        | 0.0369  |
-| Stress      | R2         | 0.9433  |
-| Engagement  | RMSE       | 0.0584  |
-| Engagement  | R2         | 0.6054  |
-| Attention   | RMSE       | 0.0508  |
-| Attention   | R2         | 0.1730  |
-| Fatigue     | RMSE       | 0.0770  |
-| Fatigue     | R2         | 0.5205  |
+## Results
 
-*ROC-AUC: scipy softmax available but logit format mismatch during eval call; fix in next pass.
+The earlier "99.93% emotion accuracy" table was removed: it came from a run where the
+label leaked into the features. The current honest numbers (emotion 35.5% accuracy,
+macro-F1 0.315 on 4 classes) are in README.md → Evaluation and
+`ml/models/weights/tcmt_eval_metrics.json`.
 
-Datasets: FER2013 (6000), RAF-DB (1500), WESAD (2000) = 9500 total real samples.
+## Phase H — Research-grade benchmark (done, 2026-10-25)
+- [x] DAiSEE loader + feature extraction with the live MediaPipe pipelines (`ml/training/DaiseeDataset.py`, `scripts/daisee/`)
+- [x] VideoTCMT with temporal position embedding, padding mask, modality masking (`ml/fusion/VideoTcmt.py`)
+- [x] Train/eval script: official splits, 3 seeds, majority baseline, temporal + modality ablations
+- [x] Tests (`ml/tests/TestDaisee.py`) and Colab notebook (`colab/DAiSEE_Benchmark_Colab.ipynb`)
+- [x] Downloaded DAiSEE, extracted features for all 8,571 labelled clips, trained 8 settings x 3 seeds (results in `results/daisee/`)
+- [x] Results table + honest reading in README (full model test macro-F1: boredom 0.316, engagement 0.275, confusion 0.299, frustration 0.265; temporal gain over static is small)
+- [x] Faithful XAI: renamed SHAPExplainer -> IntegratedGradientsExplainer and GradCAM -> FaceAUSaliency (old names kept as aliases), fixed saliency running in train() mode, added `ml/xai/Faithfulness.py` (IG, G×I, gradient, deletion/insertion, model randomisation, completeness) + tests, evaluated on DAiSEE (`results/daisee/xai_faithfulness.*`)
+- [ ] Next: learned per-frame visual features (EfficientNet) on DAiSEE; image-level Grad-CAM on the EfficientNet face crop
 
 ## Current blockers
 _None_

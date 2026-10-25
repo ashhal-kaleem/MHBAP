@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     get_redis()
 
     # Fix A+C: pre-import SessionRunner module AND construct the shared
-    # BehaviourPredictor+SHAPExplainer singleton off the event loop.
+    # BehaviourPredictor+IntegratedGradientsExplainer singleton off the event loop.
     # This moves the ~9s import + ~4.75s weight-load cost to server startup
     # so every subsequent "Start Analysis" click pays ~0s instead.
     import asyncio as _asyncio
@@ -48,12 +48,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             from ml.SessionRunner import SessionRunner  # noqa: F401 — caches module
             from ml.fusion.Predictor import BehaviourPredictor
-            from ml.xai.ShapExplainer import SHAPExplainer
+            from ml.xai.IntegratedGradients import IntegratedGradientsExplainer
             import ml._singleton as _s  # noqa: F401 — created below
             if _s.predictor is None:
                 _s.predictor = BehaviourPredictor()
-                _s.explainer = SHAPExplainer(_s.predictor._model)
-                logger.info("ML singleton ready (BehaviourPredictor + SHAPExplainer)")
+                _s.explainer = IntegratedGradientsExplainer(_s.predictor._model)
+                logger.info("ML singleton ready (BehaviourPredictor + IntegratedGradientsExplainer)")
         except Exception as _exc:
             logger.warning("ML pre-load skipped (non-fatal): {}", _exc)
 
