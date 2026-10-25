@@ -27,16 +27,27 @@ def main() -> None:
     ap.add_argument("--t", type=int, default=32, help="frames sampled per clip")
     ap.add_argument("--limit", type=int, default=None, help="clips per split (debug)")
     ap.add_argument("--splits", nargs="+", default=["train", "val", "test"])
+    ap.add_argument("--cache", type=Path, default=None,
+                    help="per-clip cache dir; makes extraction resumable")
+    ap.add_argument("--workers", type=int, default=1)
+    ap.add_argument("--max-minutes", type=float, default=None,
+                    help="stop cleanly after this long (resume with the same command)")
     args = ap.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
-    ex = VisualExtractor()
+    import time
+    deadline = time.time() + 60 * args.max_minutes if args.max_minutes else None
+    ex = None if args.cache else VisualExtractor()
     for split in args.splits:
         target = args.out / f"{split}.npz"
         if target.exists() and args.limit is None:
             print(f"[skip] {target} exists")
             continue
-        arrays = extract_split(args.root, split, t=args.t, limit=args.limit, extractor=ex)
+        arrays = extract_split(args.root, split, t=args.t, limit=args.limit, extractor=ex,
+                               cache_dir=args.cache, workers=args.workers, deadline=deadline)
+        if arrays is None:
+            print("[paused] re-run the same command to continue")
+            return
         np.savez_compressed(target, **arrays)
         print(f"[done] {split}: {len(arrays['y'])} clips, "
               f"face found in {100 * arrays['valid'].mean():.1f}% of frames -> {target}")

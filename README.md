@@ -374,7 +374,7 @@ the label logic and `ml/models/weights/tcmt_eval_metrics.json` for the raw numbe
 Emotion accuracy is 35.5 %; per-class F1 varies significantly
 (0.11–0.64 across the four classes).
 
-### Real temporal benchmark: DAiSEE (in progress)
+### Real temporal benchmark: DAiSEE
 
 The results above come from the original training setup, which has known limits:
 static images (T = 1), random-noise values for gaze/pose/voice/HCI on image samples,
@@ -398,10 +398,47 @@ python -m scripts.daisee.extract_features --root /path/to/DAiSEE --out data/dais
 python -m scripts.daisee.train_eval --features data/daisee_features --out results/daisee
 ```
 
-Or run `colab/DAiSEE_Benchmark_Colab.ipynb` on a T4. Results will be added here once the run is done.
-For reference, the DAiSEE paper reports 51.07% engagement accuracy for its frame-level
-EmotionNet baseline. Accuracy alone is misleading on DAiSEE because most clips are labelled
-high engagement, so we also report macro-F1.
+Or run `colab/DAiSEE_Benchmark_Colab.ipynb` on a T4.
+
+**Results** (official test split, n = 1,784 clips; mean ± std over 3 seeds; 4-level
+labels, so chance macro-F1 ≈ 0.25 and the majority baseline's macro-F1 ≈ 0.16–0.22).
+Raw numbers in `results/daisee/results.json`.
+
+| Setting | Boredom Acc / F1 | Engagement Acc / F1 | Confusion Acc / F1 | Frustration Acc / F1 |
+|---|---|---|---|---|
+| majority-class baseline | 46.1 / 0.158 | 49.4 / 0.165 | 67.3 / 0.201 | 77.8 / 0.219 |
+| full (face+gaze+pose, temporal) | 41.5±0.6 / 0.316±0.013 | 43.1±1.2 / 0.275±0.006 | 52.4±5.2 / 0.299±0.013 | 59.5±2.0 / 0.265±0.007 |
+| static (clip mean, T=1) | 40.1±0.7 / 0.312±0.004 | 45.5±1.4 / 0.284±0.014 | 47.6±1.1 / 0.287±0.013 | 58.6±6.0 / 0.259±0.002 |
+| face (temporal) | 36.1±0.5 / 0.294±0.004 | 44.7±4.1 / 0.284±0.024 | 49.5±0.6 / 0.274±0.001 | 50.2±1.2 / 0.240±0.005 |
+| gaze (temporal) | 28.9±3.0 / 0.240±0.012 | 41.9±4.2 / 0.266±0.031 | 45.4±11.2 / 0.250±0.025 | 54.3±7.5 / 0.247±0.011 |
+| pose (temporal) | 32.5±2.2 / 0.247±0.004 | 41.6±1.5 / 0.271±0.011 | 47.9±4.6 / 0.268±0.006 | 57.4±10.2 / 0.255±0.007 |
+| face+gaze (temporal) | 37.7±2.3 / 0.301±0.007 | 44.0±1.5 / 0.286±0.012 | 51.3±3.0 / 0.284±0.008 | 53.3±8.5 / 0.250±0.014 |
+| face+pose (temporal) | 37.7±2.1 / 0.308±0.007 | 41.7±3.5 / 0.277±0.021 | 50.6±5.0 / 0.282±0.006 | 56.6±4.9 / 0.260±0.010 |
+| gaze+pose (temporal) | 33.1±2.4 / 0.266±0.010 | 43.1±1.8 / 0.265±0.011 | 40.0±4.9 / 0.235±0.029 | 51.6±7.2 / 0.249±0.029 |
+
+How to read this honestly:
+
+- **Macro-F1 is the metric that matters here.** DAiSEE is very imbalanced, so always
+  predicting the most common level gets high accuracy (e.g. 77.8% on frustration) but
+  macro-F1 of only 0.16–0.22. The class-weighted models trade some accuracy for much
+  better macro-F1 on every state (0.27–0.32).
+- **Combining modalities helps.** The full face+gaze+pose model has the best or near-best
+  macro-F1 on boredom (0.316), confusion (0.299) and frustration (0.265). Face is the
+  strongest single modality; gaze alone is the weakest.
+- **Temporal modelling gives only a small gain.** Temporal beats the clip-mean (T = 1)
+  model on boredom, confusion and frustration, but the gaps are mostly within one std,
+  and static is slightly better on engagement (0.284 vs 0.275). With hand-crafted
+  landmark features at 32 frames per clip, most of the signal seems to be in the
+  clip-level averages. Learned per-frame visual features (e.g. EfficientNet) are the
+  obvious next step.
+- **Engagement is the hardest state.** No setting beats the majority baseline on
+  engagement accuracy, though all beat it on macro-F1. For comparison, the DAiSEE paper
+  reports 51.07% engagement accuracy for its frame-level baseline, so our accuracy-oriented
+  numbers are lower, while ours are trained for balanced performance across levels.
+
+Setup: CPU training, AdamW (lr 3e-4), up to 40 epochs with early stopping on validation
+mean macro-F1 (patience 8). DAiSEE is for research use only; cite Gupta et al. (2016)
+and Kamath et al. (2016). No DAiSEE video or images are stored in this repo.
 
 ---
 

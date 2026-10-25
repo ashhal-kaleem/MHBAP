@@ -23,7 +23,7 @@ import itertools
 import json
 import time
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Optional, Dict, List, Sequence
 
 import numpy as np
 import torch
@@ -88,6 +88,8 @@ def train_one(
     bs: int,
     device: str,
     patience: int = 8,
+    ckpt: Optional[Path] = None,
+    deadline: Optional[float] = None,
 ) -> Dict:
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -101,8 +103,16 @@ def train_one(
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-2)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=max(epochs, 1))
 
-    best, best_state, bad = -1.0, None, 0
-    for ep in range(epochs):
+    best, best_state, bad, start = -1.0, None, 0, 0
+    if ckpt is not None and ckpt.exists():
+        st = torch.load(ckpt, weights_only=False)
+        model.load_state_dict(st["model"]); opt.load_state_dict(st["opt"])
+        sched.load_state_dict(st["sched"]); torch.set_rng_state(st["rng"])
+        best, best_state, bad, start = st["best"], st["best_state"], st["bad"], st["ep"] + 1
+    ep = start - 1
+    for ep in range(start, epochs):
+        if deadline is not None and time.time() > deadline:
+            raise TimeoutError("deadline")
         model.train()
         perm = torch.randperm(len(Xtr), device=device)
         for i in range(0, len(perm), bs):
@@ -128,6 +138,10 @@ def train_one(
             bad += 1
             if bad >= patience:
                 break
+        if ckpt is not None:
+            torch.save({"model": model.state_dict(), "opt": opt.state_dict(),
+                        "sched": sched.state_dict(), "rng": torch.get_rng_state(),
+                        "best": best, "best_state": best_state, "bad": bad, "ep": ep}, ckpt)
 
     model.load_state_dict(best_state)
     pt = predict(model, Xte, Vte)
@@ -186,6 +200,9 @@ def main() -> None:
     ap.add_argument("--bs", type=int, default=64)
     ap.add_argument("--no-subsets", action="store_true", help="skip modality-subset ablation")
     ap.add_argument("--synthetic", action="store_true", help="smoke test on synthetic data")
+    ap.add_argument("--max-minutes", type=float, default=None,
+                    help="stop before starting a new run after this many minutes; "
+                         "finished runs are cached in <out>/runs and skipped on re-run")
     args = ap.parse_args()
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -213,10 +230,24 @@ def main() -> None:
 
     results: Dict = {"majority-class baseline": majority_baseline(data)}
     t0 = time.time()
+    run_dir = args.out / "runs"
+    run_dir.mkdir(exist_ok=True)
+    complete = True
     for name, (mods, temporal) in settings.items():
         runs = []
         for seed in args.seeds:
-            r = train_one(data, mods, temporal, seed, args.epochs, args.lr, args.bs, device)
+            key = "".join(c if c.isalnum() else "_" for c in name) + f"__seed{seed}.json"
+            cached = run_dir / key
+            if cached.exists() and not args.synthetic:
+                runs.append(json.loads(cached.read_text()))
+                continue
+            try:
+                r = train_one(data, mods, temporal, seed, args.epochs, args.lr, args.bs, device,
+                              ckpt=None if args.synthetic else cached.with_suffix(".ckpt"),
+                              deadline=t0 + 60 * args.max_minutes if args.max_minutes else None)
+            except TimeoutError:
+                complete = False
+                continue
             print(f"  {name} seed={seed} val={r['val_mean_macro_f1']:.3f} "
                   f"test-eng-acc={r['test']['Engagement']['accuracy']:.3f}", flush=True)
             if name.startswith("full") and seed == args.seeds[0]:
@@ -224,8 +255,16 @@ def main() -> None:
                             "modalities": mods, "mu": r["normaliser"][0],
                             "sd": r["normaliser"][1]},
                            args.out / "video_tcmt_daisee.pt")
-            runs.append({k: v for k, v in r.items() if k not in ("model", "normaliser")})
-        results[name] = aggregate(runs)
+            slim = {k: v for k, v in r.items() if k not in ("model", "normaliser")}
+            if not args.synthetic:
+                cached.write_text(json.dumps(slim))
+                cached.with_suffix(".ckpt").unlink(missing_ok=True)
+            runs.append(slim)
+        if len(runs) == len(args.seeds):
+            results[name] = aggregate(runs)
+    if not complete:
+        print("[paused] re-run the same command to continue", flush=True)
+        return
 
     results["_meta"] = {
         "dataset": "DAiSEE official splits (subject-disjoint)" if not args.synthetic else "SYNTHETIC",

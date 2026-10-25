@@ -155,34 +155,91 @@ class VisualExtractor:
         return X, valid
 
 
+def _clip_worker(args):
+    """Worker: extract one clip and write it to the per-clip cache."""
+    path, t, out = args
+    global _WORKER_EX
+    if "_WORKER_EX" not in globals() or _WORKER_EX is None:
+        _WORKER_EX = VisualExtractor()
+    X, V = _WORKER_EX.clip_features(Path(path), t)
+    tmp = Path(str(out) + ".tmp.npz")
+    np.savez(tmp, X=X, valid=V)
+    tmp.rename(out)
+    return out
+
+
+_WORKER_EX = None
+
+
 def extract_split(
     root: Path,
     split: str,
     t: int = 32,
     limit: Optional[int] = None,
     extractor: Optional[VisualExtractor] = None,
-) -> Dict[str, np.ndarray]:
-    """Extract features for one official split. Returns arrays ready for np.savez."""
+    cache_dir: Optional[Path] = None,
+    workers: int = 1,
+    deadline: Optional[float] = None,
+) -> Optional[Dict[str, np.ndarray]]:
+    """Extract features for one official split.
+
+    With cache_dir, each clip is cached as <cache_dir>/<split>/<clip>.npz and
+    skipped on re-runs, so extraction can be resumed. Returns None if the
+    deadline (unix time) passed before every clip was done.
+    """
+    import time
+
     labels = read_labels(root / "Labels" / LABEL_FILES[split])
     clips = find_clips(root / "DataSet" / SPLITS[split])
     ids = sorted(set(labels) & set(clips))
     if limit:
         ids = ids[:limit]
-    ex = extractor or VisualExtractor()
-    X = np.zeros((len(ids), t, VISUAL_DIM), dtype=np.float32)
-    V = np.zeros((len(ids), t), dtype=bool)
-    Y = np.zeros((len(ids), len(AFFECTIVE_STATES)), dtype=np.int64)
-    subj: List[str] = []
-    for n, cid in enumerate(ids):
-        s, path = clips[cid]
-        X[n], V[n] = ex.clip_features(path, t)
-        Y[n] = labels[cid]
-        subj.append(s)
-        if (n + 1) % 100 == 0:
-            print(f"[daisee:{split}] {n + 1}/{len(ids)}", flush=True)
     missing = len(labels) - len(set(labels) & set(clips))
     if missing:
         print(f"[daisee:{split}] WARN {missing} labelled clips not found on disk", flush=True)
+
+    if cache_dir is None:
+        ex = extractor or VisualExtractor()
+        feats = {cid: ex.clip_features(clips[cid][1], t) for cid in ids}
+    else:
+        cdir = Path(cache_dir) / split
+        cdir.mkdir(parents=True, exist_ok=True)
+        todo = [(str(clips[c][1]), t, cdir / f"{c}.npz") for c in ids
+                if not (cdir / f"{c}.npz").exists()]
+        print(f"[daisee:{split}] {len(ids) - len(todo)}/{len(ids)} cached, {len(todo)} to do",
+              flush=True)
+        done = 0
+        if todo:
+            if workers > 1:
+                import multiprocessing as mp
+                with mp.get_context("fork").Pool(workers) as pool:
+                    for _ in pool.imap_unordered(_clip_worker, todo, chunksize=4):
+                        done += 1
+                        if done % 100 == 0:
+                            print(f"[daisee:{split}] +{done}/{len(todo)}", flush=True)
+                        if deadline and time.time() > deadline:
+                            pool.terminate()
+                            print(f"[daisee:{split}] deadline hit, resume later", flush=True)
+                            return None
+            else:
+                for job in todo:
+                    _clip_worker(job)
+                    done += 1
+                    if deadline and time.time() > deadline:
+                        return None
+        feats = {}
+        for c in ids:
+            try:
+                d = np.load(cdir / f"{c}.npz")
+                feats[c] = (d["X"], d["valid"])
+            except Exception:
+                print(f"[daisee:{split}] WARN unreadable cache for {c}; skipped", flush=True)
+
+    ids = [c for c in ids if c in feats]
+    X = np.stack([feats[c][0] for c in ids]).astype(np.float32)
+    V = np.stack([feats[c][1] for c in ids]).astype(bool)
+    Y = np.stack([labels[c] for c in ids]).astype(np.int64)
+    subj = [clips[c][0] for c in ids]
     return {
         "X": X, "valid": V, "y": Y,
         "clip_ids": np.array(ids), "subjects": np.array(subj),
