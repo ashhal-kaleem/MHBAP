@@ -1,11 +1,15 @@
 """
-gradcam.py — True Grad-CAM for TCMT face modality encoder.
+Gradcam.py — gradient-weighted saliency over the 12 face AU features of the live TCMT.
 
-Hooks into the face projection layer (_ModalityProjection.projs["face"])
-and computes gradient-weighted activation maps per output head.
+Honest naming note: this is NOT image Grad-CAM (Selvaraju et al., 2017). There is
+no convolutional feature map here. It weights the activations of the face
+*projection* Linear layer by their gradients (a Grad-CAM-style rule) and maps the
+result back to the 12 AU-proxy inputs. The output is a 12-dim importance vector,
+not a spatial heatmap. The class is exposed as `FaceAUSaliency`; `GradCAM` is kept
+as a backward-compatible alias.
 
-Returns a per-feature saliency vector over the 12 face AU dims,
-normalised to [0,1] so it can be rendered as a heatmap in the dashboard.
+Fixed (2026-10): explain() used to switch the model to train() mode, so dropout
+made saliency maps random from call to call. It now runs in eval() mode.
 """
 from __future__ import annotations
 from typing import Dict, Optional
@@ -17,7 +21,7 @@ from ml.fusion.FeatureUtils import modality_slice
 FACE_DIM = 12   # au_* keys
 
 
-class GradCAM:
+class FaceAUSaliency:
     """
     Gradient-weighted Class Activation Map over face AU features.
 
@@ -69,7 +73,7 @@ class GradCAM:
         """
         import torch
 
-        self._model.train()
+        self._model.eval()   # deterministic: no dropout during attribution
         self._model.zero_grad()
         self._register_hooks()
         self._activations = None
@@ -130,3 +134,7 @@ class GradCAM:
         if _max > 1e-8:
             au_sal = au_sal / _max
         return au_sal.astype(np.float32)
+
+
+# Backward-compatible name (not image Grad-CAM; see module docstring).
+GradCAM = FaceAUSaliency

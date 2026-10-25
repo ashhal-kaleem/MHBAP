@@ -159,9 +159,13 @@ logs a warning and skips inference for that frame (it does not fall back to rand
 
 | Method | Module | Fallback |
 |--------|--------|----------|
-| Integrated Gradients | `captum.attr.IntegratedGradients` | Gradient×Input |
-| GradCAM | `ml/xai/Gradcam.py` | — |
+| Integrated Gradients | `ml/xai/IntegratedGradients.py` (captum) | Gradient×Input |
+| Face-AU saliency (Grad-CAM-style rule on the face projection layer; **not** image Grad-CAM) | `ml/xai/Gradcam.py` (`FaceAUSaliency`) | — |
 | Feature importance | Per-modality attribution aggregation | Feature-magnitude heuristic |
+
+The old names `SHAPExplainer` and `GradCAM` still work as aliases, but they were
+misleading: the first never computed SHAP values, and the second has no image feature
+map. How faithful these attributions are is measured on DAiSEE (see Evaluation).
 
 Attributions for a session are available at
 `GET /api/v1/predictions/Session/{session_id}/xai` (requires authentication).
@@ -237,7 +241,7 @@ MHBAP/
 │   │   └── weights/            # enet_b0_8_best_afew.pt (download separately)
 │   ├── pipelines/              # face/, gaze/, pose/, voice/, hci/
 │   ├── training/               # Dataset.py (synthetic), RealDataset.py
-│   ├── xai/                    # ShapExplainer.py, Gradcam.py, NlExplainer.py
+│   ├── xai/                    # IntegratedGradients.py, Gradcam.py, Faithfulness.py, NlExplainer.py
 │   └── SessionRunner.py
 ├── scripts/                    # training, evaluation, download, diagnostic scripts
 ├── colab/                      # Colab training notebook + weight sync
@@ -440,6 +444,42 @@ Setup: CPU training, AdamW (lr 3e-4), up to 40 epochs with early stopping on val
 mean macro-F1 (patience 8). DAiSEE is for research use only; cite Gupta et al. (2016)
 and Kamath et al. (2016). No DAiSEE video or images are stored in this repo.
 
+### Are the explanations faithful? (DAiSEE)
+
+`scripts/daisee/xai_eval.py` tests the attribution methods on the trained full model
+(seed 0) over 200 random test clips. Each method ranks every (frame, feature) input;
+we then delete (or insert) inputs in that order and track the probability of the
+predicted level (Petsiuk et al., 2018), and re-run each method on a fully
+re-initialised model (Adebayo et al., 2018). Raw numbers in
+`results/daisee/xai_faithfulness.json`.
+
+| State | Deletion AUC ↓ (IG / G×I / Grad / random) | Insertion AUC ↑ (IG / G×I / Grad / random) | Randomised-model Spearman ↓ (IG / G×I / Grad) | Spearman with \|x\| (IG / G×I / Grad) | IG share face / gaze / pose |
+|---|---|---|---|---|---|
+| Boredom | 0.344 / 0.361 / 0.385 / 0.394 | 0.429 / 0.416 / 0.381 / 0.392 | 0.607 / 0.587 / 0.098 | 0.756 / 0.727 / -0.049 | 0.53 / 0.14 / 0.33 |
+| Engagement | 0.380 / 0.392 / 0.418 / 0.422 | 0.445 / 0.434 / 0.401 / 0.419 | 0.648 / 0.608 / 0.156 | 0.759 / 0.715 / -0.077 | 0.51 / 0.15 / 0.34 |
+| Confusion | 0.354 / 0.366 / 0.389 / 0.389 | 0.406 / 0.393 / 0.371 / 0.388 | 0.620 / 0.609 / 0.103 | 0.754 / 0.740 / -0.053 | 0.59 / 0.11 / 0.31 |
+| Frustration | 0.443 / 0.450 / 0.458 / 0.453 | 0.449 / 0.443 / 0.430 / 0.450 | 0.625 / 0.608 / 0.065 | 0.793 / 0.751 / -0.026 | 0.53 / 0.11 / 0.36 |
+
+What this shows:
+
+- **IG is the most faithful of the three on deletion and insertion** for every state:
+  removing the inputs IG ranks highest drops the prediction faster than G×I, plain
+  gradients or a random order (e.g. boredom deletion AUC 0.344 vs 0.394 random). The
+  gap is small for frustration (0.443 vs 0.453).
+- **But IG and G×I only partly pass the randomisation sanity check.** Their maps on a
+  random model still have rank correlation about 0.6 with the trained model's, mainly
+  because both multiply by the input (correlation with |x| is about 0.75). So part of
+  what they show is "which inputs are large", not "what the model learned".
+- **Plain gradients pass the sanity check** (correlation 0.07 to 0.16) but do no better
+  than random on deletion. No single method wins on both tests, which matches findings
+  in the XAI literature.
+- **Modality shares agree with the ablation.** IG gives face about 51 to 59% of the
+  attribution, pose about 31 to 36%, gaze about 11 to 15%. In the ablation, face was
+  the strongest single modality and gaze the weakest.
+
+Takeaway for the live dashboard: per-modality IG shares are a reasonable summary, but
+they should be read with the input-magnitude caveat above.
+
 ---
 
 ## Privacy & Data Handling
@@ -465,3 +505,8 @@ and Kamath et al. (2016). No DAiSEE video or images are stored in this repo.
 4. Zadeh et al. (2018). *Multi-attention Recurrent Network for Human Communication Comprehension.* AAAI 2018.
 5. Poria et al. (2017). *A review of affective computing: From unimodal analysis to multimodal fusion.* Information Fusion.
 6. Sundararajan et al. (2017). *Axiomatic Attribution for Deep Networks (Integrated Gradients).* ICML 2017.
+7. Gupta, A., D'Cunha, A., Awasthi, K., Balasubramanian, V. (2016). *DAiSEE: Towards User Engagement Recognition in the Wild.* arXiv:1609.01885.
+8. Kamath, A., Biswas, A., Balasubramanian, V. (2016). *A Crowdsourced Approach to Student Engagement Recognition in e-Learning Environments.* WACV 2016.
+9. Petsiuk, V., Das, A., Saenko, K. (2018). *RISE: Randomized Input Sampling for Explanation of Black-box Models.* BMVC 2018.
+10. Adebayo, J., Gilmer, J., Muelly, M., Goodfellow, I., Hardt, M., Kim, B. (2018). *Sanity Checks for Saliency Maps.* NeurIPS 2018.
+11. Simonyan, K., Vedaldi, A., Zisserman, A. (2014). *Deep Inside Convolutional Networks: Visualising Image Classification Models and Saliency Maps.* ICLR Workshop 2014.

@@ -40,7 +40,8 @@ macro-F1 0.315 on 4 classes) are in README.md → Evaluation and
 - [x] Tests (`ml/tests/TestDaisee.py`) and Colab notebook (`colab/DAiSEE_Benchmark_Colab.ipynb`)
 - [x] Downloaded DAiSEE, extracted features for all 8,571 labelled clips, trained 8 settings x 3 seeds (results in `results/daisee/`)
 - [x] Results table + honest reading in README (full model test macro-F1: boredom 0.316, engagement 0.275, confusion 0.299, frustration 0.265; temporal gain over static is small)
-- [ ] Next: learned per-frame visual features (EfficientNet) on DAiSEE; faithful XAI (Fix 3)
+- [x] Faithful XAI: renamed SHAPExplainer -> IntegratedGradientsExplainer and GradCAM -> FaceAUSaliency (old names kept as aliases), fixed saliency running in train() mode, added `ml/xai/Faithfulness.py` (IG, G×I, gradient, deletion/insertion, model randomisation, completeness) + tests, evaluated on DAiSEE (`results/daisee/xai_faithfulness.*`)
+- [ ] Next: learned per-frame visual features (EfficientNet) on DAiSEE; image-level Grad-CAM on the EfficientNet face crop
 
 ## Current blockers
 _None_
