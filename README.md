@@ -270,14 +270,13 @@ docker compose up --build
 ### Manual development setup
 
 ```bash
-# Backend
-cd backend
+# Backend (run from the repo root, where pyproject.toml lives)
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[ml,dev]"         # or: uv sync --extra ml --extra dev
 
 docker compose up postgres redis -d
-uvicorn app.main:app --reload      # http://localhost:8000
+uvicorn app.Main:app --app-dir backend --reload   # http://localhost:8000
 
 # Frontend (separate terminal)
 cd frontend
@@ -374,6 +373,35 @@ the label logic and `ml/models/weights/tcmt_eval_metrics.json` for the raw numbe
 
 Emotion accuracy is 35.5 %; per-class F1 varies significantly
 (0.11–0.64 across the four classes).
+
+### Real temporal benchmark: DAiSEE (in progress)
+
+The results above come from the original training setup, which has known limits:
+static images (T = 1), random-noise values for gaze/pose/voice/HCI on image samples,
+and proxy labels for engagement/attention/fatigue. To get numbers that measure real
+behaviour, MHBAP now includes a benchmark on **DAiSEE** (Gupta et al., 2016):
+9,068 ten-second webcam clips from 112 subjects, labelled 0 to 3 for boredom,
+engagement, confusion and frustration.
+
+- **Features:** the same MediaPipe face/gaze/pose pipelines used live, run on 32
+  uniformly sampled frames per clip (28 dims per frame). Frames with no detected face are masked.
+- **Model:** `ml/fusion/VideoTcmt.py`, a TCMT variant with a temporal position
+  embedding (the original TCMT has none, so it cannot tell frame order apart),
+  padding masks and learned missing-modality tokens.
+- **Protocol:** official subject-disjoint Train/Validation/Test splits; model selection
+  on validation only; class-weighted loss (DAiSEE is heavily imbalanced); 3 seeds,
+  reported as mean ± std, with both accuracy and macro-F1.
+- **Ablations:** majority-class baseline, temporal vs clip-mean (T = 1), and every modality subset.
+
+```bash
+python -m scripts.daisee.extract_features --root /path/to/DAiSEE --out data/daisee_features
+python -m scripts.daisee.train_eval --features data/daisee_features --out results/daisee
+```
+
+Or run `colab/DAiSEE_Benchmark_Colab.ipynb` on a T4. Results will be added here once the run is done.
+For reference, the DAiSEE paper reports 51.07% engagement accuracy for its frame-level
+EmotionNet baseline. Accuracy alone is misleading on DAiSEE because most clips are labelled
+high engagement, so we also report macro-F1.
 
 ---
 
