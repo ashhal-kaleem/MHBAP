@@ -1,7 +1,8 @@
 """Alembic migration versions package.
 
-Each migration module is prefixed with an underscore so it is a valid
-Python identifier (Alembic file names start with a digit).  Import them
-here so the package is easily importable in tests.
+Migration files start with a digit (e.g. 0002_add_auth_fields_to_users.py), so
+they are not importable by normal syntax. Tests load them with importlib.
+There used to be an underscore-prefixed copy of 0002 here for tests, but Alembic
+scans every file in this folder, so the copy created a second revision "0002"
+(two heads). It was removed.
 """
-from app.db.migrations.versions import _0002_add_auth_fields_to_users  # noqa: F401
